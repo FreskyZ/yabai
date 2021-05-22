@@ -1,0 +1,24 @@
+# IDE setting
+.DS_Store
+.vscode/
+.idea/
+venv/
+
+# Cache & binary & logs
+__pycache__
+*.pyo
+cache/
+build/
+dist/
+*.build/
+*.dist/
+logs/
+
+# Config
+config_*.json
+config.json
+!utils/config_default.json
+
+# VLC bin
+plugins/
+*.dll

@@ -22,3 +22,8 @@ config.json
 # VLC bin
 plugins/
 *.dll
+
+scripts
+pyvenv.cfg
+
+Lib

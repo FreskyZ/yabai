@@ -1,10 +1,9 @@
 """将弹幕机分离出来单独开发
 """
-from PyQt5.QtWidgets import QLabel, QToolButton, QWidget, QComboBox, QLineEdit, QTextBrowser, QGridLayout, QStyle
-from PyQt5.QtGui import QFont
+from PyQt5.QtWidgets import QLabel, QTextEdit, QToolButton, QWidget, QComboBox, QLineEdit, QTextBrowser, QGridLayout, QStyle
+from PyQt5.QtGui import QFont, QFontMetrics, QTextBlockFormat
 from PyQt5.QtCore import Qt, pyqtSignal, QPoint
 from CommonWidget import Slider
-
 
 class Bar(QLabel):
     """自定义标题栏"""
@@ -13,7 +12,7 @@ class Bar(QLabel):
     def __init__(self, text):
         super(Bar, self).__init__()
         self.setText(text)
-        self.setFixedHeight(25)
+        self.setFixedHeight(24)
 
     def mousePressEvent(self, event):
         self.startPos = event.pos()
@@ -123,26 +122,24 @@ class TextBrowser(QWidget):
         layout.addWidget(self.closeButton, 0, 9, 1, 1)
 
         # 弹幕区域
-        self.textBrowser = QTextBrowser()
-        self.textBrowser.setFont(QFont('Microsoft JhengHei', 14, QFont.Bold))
-        self.textBrowser.setStyleSheet('border-width:1')
-        # textCursor = self.textBrowser.textCursor()
-        # textBlockFormat = QTextBlockFormat()
-        # textBlockFormat.setLineHeight(17, QTextBlockFormat.FixedHeight)  # 弹幕框行距
-        # textCursor.setBlockFormat(textBlockFormat)
-        # self.textBrowser.setTextCursor(textCursor)
+        self.textBrowser = QTextEdit()
+        self.textBrowser.setFont(QFont('Microsoft YaHei', 12))
+        self.textBrowser.setReadOnly(True)
+        textcursor = self.textBrowser.textCursor()
+        blockformat = textcursor.blockFormat()
+        blockformat.setLineHeight(0.5, QTextBlockFormat.LineDistanceHeight)
+        textcursor.setBlockFormat(blockformat)
         layout.addWidget(self.textBrowser, 1, 0, 1, 10)
+        layout.setRowStretch(1, 5)
 
         # 同传区域
         self.transBrowser = QTextBrowser()
-        self.transBrowser.setFont(QFont('Microsoft JhengHei', 14, QFont.Bold))
-        self.transBrowser.setStyleSheet('border-width:1')
+        self.transBrowser.setFont(QFont('Microsoft YaHei', 12))
         layout.addWidget(self.transBrowser, 2, 0, 1, 10)
 
         # 信息区域
         self.msgsBrowser = QTextBrowser()
-        self.msgsBrowser.setFont(QFont('Microsoft JhengHei', 14, QFont.Bold))
-        self.msgsBrowser.setStyleSheet('border-width:1')
+        self.msgsBrowser.setFont(QFont('Microsoft YaHei', 12))
         # self.msgsBrowser.setMaximumHeight(100)
         layout.addWidget(self.msgsBrowser, 3, 0, 1, 10)
 

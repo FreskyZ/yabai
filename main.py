@@ -702,11 +702,11 @@ class MainWindow(QMainWindow):
                     videoWidget.textBrowser.msgsBrowser.hide()
                 size = videoWidget.textSetting[6]
                 videoWidget.textBrowser.textBrowser.setFont(
-                    QFont('Microsoft JhengHei', size + 5, QFont.Bold))
+                    QFont('Microsoft Yahei', size + 5, QFont.Bold))
                 videoWidget.textBrowser.transBrowser.setFont(
-                    QFont('Microsoft JhengHei', size + 5, QFont.Bold))
+                    QFont('Microsoft Yahei', size + 5, QFont.Bold))
                 videoWidget.textBrowser.msgsBrowser.setFont(
-                    QFont('Microsoft JhengHei', size + 5, QFont.Bold))
+                    QFont('Microsoft Yahei', size + 5, QFont.Bold))
 
         # 交换控件列表
         self.videoWidgetList[fromID], self.videoWidgetList[toID] = toVideo, fromVideo
@@ -827,14 +827,6 @@ class MainWindow(QMainWindow):
         for videoWidget in self.videoWidgetList:
             videoWidget.mediaStop()
 
-    # def globalDanmuShow(self):  # 已弃用
-    #     self.globalDanmuToken = not self.globalDanmuToken
-    #     for videoWidget in self.videoWidgetList:
-    #         if not videoWidget.isHidden():
-    #             videoWidget.textBrowser.show() if self.globalDanmuToken else videoWidget.textBrowser.hide()
-    #     for danmuConfig in self.config['danmu']:
-    #         danmuConfig[0] = self.globalDanmuToken
-
     def setGlobalDanmuOpacity(self, value):
         if value < 7:
             value = 7  # 最小透明度
@@ -909,11 +901,11 @@ class MainWindow(QMainWindow):
         for videoWidget in self.videoWidgetList + self.popVideoWidgetList:
             videoWidget.textSetting[6] = index
             videoWidget.textBrowser.textBrowser.setFont(
-                QFont('Microsoft JhengHei', index + 5, QFont.Bold))
+                QFont('Microsoft Yahei', index + 5, QFont.Bold))
             videoWidget.textBrowser.transBrowser.setFont(
-                QFont('Microsoft JhengHei', index + 5, QFont.Bold))
+                QFont('Microsoft Yahei', index + 5, QFont.Bold))
             videoWidget.textBrowser.msgsBrowser.setFont(
-                QFont('Microsoft JhengHei', index + 5, QFont.Bold))
+                QFont('Microsoft Yahei', index + 5, QFont.Bold))
 
     def globalQuality(self, quality):
         for videoWidget in self.videoWidgetList + self.popVideoWidgetList:
@@ -1311,8 +1303,8 @@ if __name__ == '__main__':
     loggingSystemInfo()
     # vlc 版本信息log
     import vlc
-    vlc_libvlc_env = os.getenv('PYTHON_VLC_LIB_PATH', '')
-    vlc_plugin_env = os.getenv('PYTHON_VLC_MODULE_PATH', '')
+    vlc_libvlc_env = 'C:\\Users\\Fresk\\repos\\dmon' # os.getenv('PYTHON_VLC_LIB_PATH', '')
+    vlc_plugin_env = 'C:\\Users\\Fresk\\repos\\dmon\\plugins' # os.getenv('PYTHON_VLC_MODULE_PATH', '')
     logging.info(f"libvlc env: PYTHON_VLC_LIB_PATH={vlc_libvlc_env}")
     logging.info(f"plugin env: PYTHON_VLC_MODULE_PATH={vlc_plugin_env}")
     logging.info(f"libvlc path: {vlc.dll._name}")

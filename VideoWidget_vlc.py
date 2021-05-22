@@ -510,15 +510,6 @@ class VideoWidget(QFrame):
                             0.6, 0.7, 0.8, 0.9, 1.0][index]  # 记录横向占比
         width = self.width() * self.horiPercent
         self.textBrowser.resize(width, self.textBrowser.height())
-        # if width > 240:
-        #     self.textBrowser.textBrowser.setFont(QFont('Microsoft JhengHei', 17, QFont.Bold))
-        #     self.textBrowser.transBrowser.setFont(QFont('Microsoft JhengHei', 17, QFont.Bold))
-        # elif 100 < width <= 240:
-        #     self.textBrowser.textBrowser.setFont(QFont('Microsoft JhengHei', width // 20 + 5, QFont.Bold))
-        #     self.textBrowser.transBrowser.setFont(QFont('Microsoft JhengHei', width // 20 + 5, QFont.Bold))
-        # else:
-        #     self.textBrowser.textBrowser.setFont(QFont('Microsoft JhengHei', 10, QFont.Bold))
-        #     self.textBrowser.transBrowser.setFont(QFont('Microsoft JhengHei', 10, QFont.Bold))
         self.textBrowser.textBrowser.verticalScrollBar().setValue(100000000)
         self.textBrowser.transBrowser.verticalScrollBar().setValue(100000000)
         self.textBrowser.msgsBrowser.verticalScrollBar().setValue(100000000)
@@ -568,11 +559,11 @@ class VideoWidget(QFrame):
     def setFontSize(self, index):
         self.textSetting[6] = index
         self.textBrowser.textBrowser.setFont(
-            QFont('Microsoft JhengHei', index + 5, QFont.Bold))
+            QFont('Microsoft Yahei', index + 5, QFont.Bold))
         self.textBrowser.transBrowser.setFont(
-            QFont('Microsoft JhengHei', index + 5, QFont.Bold))
+            QFont('Microsoft Yahei', index + 5, QFont.Bold))
         self.textBrowser.msgsBrowser.setFont(
-            QFont('Microsoft JhengHei', index + 5, QFont.Bold))
+            QFont('Microsoft Yahei', index + 5, QFont.Bold))
         self.setDanmu.emit()
 
     def resizeEvent(self, QEvent):
@@ -1000,7 +991,8 @@ class VideoWidget(QFrame):
         try:
             self.danmu.message.disconnect(self.playDanmu)
         except:
-            logging.exception('停止弹幕出错')
+            pass
+            #logging.exception('停止弹幕出错')
         self.getMediaURL.recordToken = False
         self.getMediaURL.checkTimer.stop()
         self.checkPlaying.stop()
@@ -1131,7 +1123,10 @@ class VideoWidget(QFrame):
                 token = True
                 break
         if not token:
-            self.textBrowser.textBrowser.append(message + '\n')
+            self.textBrowser.textBrowser.append(message)
+            current_content = self.textBrowser.textBrowser.toPlainText()
+            if sum([1 for c in current_content if c == '\n']) > 100:
+                self.textBrowser.textBrowser.setPlainText(current_content[-5000:0])
 
     def keyPressEvent(self, QKeyEvent):
         if QKeyEvent.key() == Qt.Key_Escape:

@@ -677,6 +677,7 @@ class AddLiverRoomWidget(QWidget):
         tab.addTab(hotLiverPage, '正在直播')
         tab.addTab(hacoPage, '个人势/箱')
         tab.addTab(followsPage, '关注添加')
+        print('add liver modal created')
 
     def editChange(self):  # 提取输入文本中的数字
         if len(self.roomEdit.text()) > len(self.roomEditText):

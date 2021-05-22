@@ -109,7 +109,7 @@ class remoteThread(QThread):
                         medal.append(jz)
                     medal.append(jd['data']['medal_info']['medal_name'])
                     medal.append(jd['data']['medal_info']['medal_level'])
-                return "|" + "|".join(medal) + "|"
+                return "[" + " ".join(medal) + "]"
             except:
                 return ""
 
@@ -118,7 +118,8 @@ class remoteThread(QThread):
                 jd = json.loads(data[16:].decode('utf-8', errors='ignore'))
                 if jd['cmd'] == 'DANMU_MSG':
                     self.message.emit(
-                        f"{userType[jd['info'][2][7]]}{adminType[jd['info'][2][2]]}{getMetal(jd)} {jd['info'][2][1]}: {jd['info'][1]}"
+                        #f"{userType[jd['info'][2][7]]}{adminType[jd['info'][2][2]]}"+
+                        f"{getMetal(jd)}{jd['info'][2][1]}: {jd['info'][1]}"
                     )
                 elif jd['cmd'] == 'SUPER_CHAT_MESSAGE':
                     self.message.emit(

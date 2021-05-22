@@ -12,9 +12,9 @@ import random
 from PyQt5.QtWidgets import * 	# QAction,QFileDialog
 from PyQt5.QtGui import *		# QIcon,QPixmap
 from PyQt5.QtCore import * 		# QSize
-from CommonWidget import Slider
-from remote import remoteThread
-from danmu import TextBrowser
+from components.CommonWidget import Slider
+from components.remote import remoteThread
+from components.danmu import TextBrowser
 import vlc
 import platform
 import logging

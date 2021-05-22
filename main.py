@@ -1,12 +1,4 @@
-"""
-DD监控室主界面进程 包含对所有子页面的初始化、排版管理
-同时卡片和播放窗口的交互需要通过主界面线程通信
-以及软件启动和退出后的一些操作
-新增全局鼠标坐标跟踪 用于刷新鼠标交互效果
-"""
-import log
-# 找不到 dll
-# https://stackoverflow.com/questions/54110504/dynlib-dll-was-no-found-when-the-application-was-frozen-when-i-make-a-exe-fil
+import components.log
 import ctypes
 
 import os
@@ -20,21 +12,19 @@ import threading
 from PyQt5.QtWidgets import * 	# QAction,QFileDialog
 from PyQt5.QtGui import *		# QIcon,QPixmap
 from PyQt5.QtCore import * 		# QSize
-from LayoutPanel import LayoutSettingPanel
-# from VideoWidget import PushButton, Slider, VideoWidget  # 已弃用
-from VideoWidget_vlc import PushButton, Slider, VideoWidget
-from LiverSelect import LiverPanel
-from pay import pay
+from components.LayoutPanel import LayoutSettingPanel
+from components.VideoWidget import PushButton, Slider, VideoWidget
+from components.LiverSelect import LiverPanel
+from components.pay import pay
 import codecs
 import dns.resolver
-from ReportException import thraedingExceptionHandler, uncaughtExceptionHandler,\
+from components.ReportException import thraedingExceptionHandler, uncaughtExceptionHandler,\
     unraisableExceptionHandler, loggingSystemInfo
-from danmu import TextOpation, ToolButton
-
+from components.danmu import TextOpation, ToolButton
 
 # 程序所在路径
-application_path = ""
-
+application_path = os.getcwd()
+print(application_path)
 
 def _translate(context, text, disambig):
     return QApplication.translate(context, text, disambig)
@@ -210,7 +200,7 @@ class DumpConfig(QThread):
     def run(self):
         try:
             configJSONPath = os.path.join(
-                application_path, r'utils/config.json')
+                application_path, r'assets/config.json')
             with codecs.open(configJSONPath, 'w', encoding='utf-8') as f:
                 f.write(json.dumps(self.config, ensure_ascii=False))
         except:
@@ -218,7 +208,7 @@ class DumpConfig(QThread):
 
         try:  # 备份 防止存储config时崩溃
             configJSONPath = os.path.join(
-                application_path, r'utils/config_备份%d.json' % self.backupNumber)
+                application_path, r'assets/config_备份%d.json' % self.backupNumber)
             self.backupNumber += 1
             if self.backupNumber == 4:
                 self.backupNumber = 1
@@ -260,7 +250,7 @@ class MainWindow(QMainWindow):
 
         # ---- json 配置文件加载 ----
         self.configJSONPath = os.path.join(
-            application_path, r'utils/config.json')
+            application_path, r'assets/config.json')
         self.config = {}
         # 读取默认的 config
         if os.path.exists(self.configJSONPath):
@@ -276,7 +266,7 @@ class MainWindow(QMainWindow):
         if not self.config:
             for backupNumber in [1, 2, 3]:  # 备份预设123
                 self.configJSONPath = os.path.join(
-                    application_path, r'utils/config_备份%d.json' % backupNumber)
+                    application_path, r'assets/config_备份%d.json' % backupNumber)
                 if os.path.exists(self.configJSONPath):  # 如果备份文件存在
                     if os.path.getsize(self.configJSONPath):  # 如过备份文件有效
                         try:
@@ -463,7 +453,7 @@ class MainWindow(QMainWindow):
             self.setGlobalFontSize)
         # self.danmuButton = ToolButton(self.style().standardIcon(QStyle.SP_FileDialogDetailedView))
         icon = QIcon()
-        icon.addFile(os.path.join(application_path, 'utils/danmu.png'))
+        icon.addFile(os.path.join(application_path, 'assets/danmu.png'))
         self.danmuButton = PushButton(icon)
         self.danmuButton.clicked.connect(self.danmuOption.show)
         # self.danmuButton = PushButton(text='弹')
@@ -1290,29 +1280,25 @@ if __name__ == '__main__':
     # 应用qss
     QApplication.setAttribute(Qt.AA_EnableHighDpiScaling)
     app = QApplication(sys.argv)
-    with open(os.path.join(application_path, 'utils/qdark.qss'), 'r') as f:
+    with open(os.path.join(application_path, 'assets/qdark.qss'), 'r') as f:
         qss = f.read()
     app.setStyleSheet(qss)
     app.setFont(QFont('微软雅黑', 9))
 
     # 日志采集初始化
-    log.init_log(application_path)
+    components.log.init_log(application_path)
     sys.excepthook = uncaughtExceptionHandler
     sys.unraisablehook = unraisableExceptionHandler
     threading.excepthook = thraedingExceptionHandler
     loggingSystemInfo()
     # vlc 版本信息log
     import vlc
-    vlc_libvlc_env = 'C:\\Users\\Fresk\\repos\\dmon' # os.getenv('PYTHON_VLC_LIB_PATH', '')
-    vlc_plugin_env = 'C:\\Users\\Fresk\\repos\\dmon\\plugins' # os.getenv('PYTHON_VLC_MODULE_PATH', '')
-    logging.info(f"libvlc env: PYTHON_VLC_LIB_PATH={vlc_libvlc_env}")
-    logging.info(f"plugin env: PYTHON_VLC_MODULE_PATH={vlc_plugin_env}")
     logging.info(f"libvlc path: {vlc.dll._name}")
     logging.info(f"vlc version: {vlc.libvlc_get_version()}")
 
     # 欢迎页面
     splash = QSplashScreen(QPixmap(os.path.join(
-        application_path, 'utils/splash.jpg')), Qt.WindowStaysOnTopHint)
+        application_path, 'assets/splash.jpg')), Qt.WindowStaysOnTopHint)
     progressBar = QProgressBar(splash)
     progressBar.setMaximum(32)  # 16 * 2个播放器, 0 - 17 index
     progressBar.setGeometry(0, splash.height() - 20, splash.width(), 20)

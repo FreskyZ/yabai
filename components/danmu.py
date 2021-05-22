@@ -3,7 +3,7 @@
 from PyQt5.QtWidgets import QLabel, QTextEdit, QToolButton, QWidget, QComboBox, QLineEdit, QTextBrowser, QGridLayout, QStyle
 from PyQt5.QtGui import QFont, QFontMetrics, QTextBlockFormat
 from PyQt5.QtCore import Qt, pyqtSignal, QPoint
-from CommonWidget import Slider
+from components.CommonWidget import Slider
 
 class Bar(QLabel):
     """自定义标题栏"""

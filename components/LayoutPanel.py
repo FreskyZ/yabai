@@ -4,7 +4,7 @@
 from PyQt5.QtWidgets import QLabel, QWidget, QGridLayout
 from PyQt5.QtGui import QFont
 from PyQt5.QtCore import Qt, pyqtSignal
-from LayoutConfig import layoutList
+from components.LayoutConfig import layoutList
 
 
 class Label(QLabel):

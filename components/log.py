@@ -1,16 +1,14 @@
-# -*- coding: utf-8 -*-
 """全局日志
 Note: 仅在入口文件中导入一次
 """
-import os
 import datetime
 import logging
+import os
 import sys
 
 
 def get_submod_log(submod_name):
     return logging.getLogger('Main' + '.' + submod_name)
-
 
 class LoggerStream(object):
     """假 stream，将 stdout/stderr 流重定向到日志，避免win上无头模式运行时报错。
@@ -36,7 +34,6 @@ class LoggerStream(object):
         for handler in self.logger.handlers:
             handler.flush()
 
-
 def init_log(application_path):
     log_path = os.path.join(application_path, r'logs/log-%s.txt' % (datetime.datetime.today().strftime('%Y-%m-%d')))
     if sys.stderr:
@@ -58,5 +55,3 @@ def init_log(application_path):
         )
     sys.stdout = LoggerStream('STDOUT', logging.INFO, 1)
     sys.stderr = LoggerStream('STDERR', logging.ERROR, 2)
-
-

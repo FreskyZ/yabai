@@ -1,9 +1,5 @@
-# -*- coding: utf-8 -*-
-"""一些公用的组件
-"""
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtWidgets import QSlider
-
 
 class Slider(QSlider):
     """通用的滚动条"""

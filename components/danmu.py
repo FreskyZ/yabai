@@ -1,9 +1,12 @@
 """将弹幕机分离出来单独开发
 """
-from PyQt5.QtWidgets import QLabel, QTextEdit, QToolButton, QWidget, QComboBox, QLineEdit, QTextBrowser, QGridLayout, QStyle
-from PyQt5.QtGui import QFont, QFontMetrics, QTextBlockFormat
-from PyQt5.QtCore import Qt, pyqtSignal, QPoint
-from components.CommonWidget import Slider
+from PyQt5.QtCore import QPoint, Qt, pyqtSignal
+from PyQt5.QtGui import QFont, QTextBlockFormat
+from PyQt5.QtWidgets import (QComboBox, QGridLayout, QLabel, QLineEdit, QStyle,
+                             QTextBrowser, QTextEdit, QToolButton, QWidget)
+
+from components.Slider import Slider
+
 
 class Bar(QLabel):
     """自定义标题栏"""

@@ -1,34 +1,26 @@
-import components.log
-import ctypes
-
-import os
-import sys
-import json
-import time
-import shutil
-import logging
-import platform
-import threading
-from PyQt5.QtWidgets import * 	# QAction,QFileDialog
-from PyQt5.QtGui import *		# QIcon,QPixmap
-from PyQt5.QtCore import * 		# QSize
-from components.LayoutPanel import LayoutSettingPanel
-from components.VideoWidget import PushButton, Slider, VideoWidget
-from components.LiverSelect import LiverPanel
-from components.pay import pay
 import codecs
-import dns.resolver
-from components.ReportException import thraedingExceptionHandler, uncaughtExceptionHandler,\
-    unraisableExceptionHandler, loggingSystemInfo
-from components.danmu import TextOpation, ToolButton
+import ctypes
+import json
+import logging
+import os
+import platform
+import shutil
+import sys
+import time
+
+from PyQt5.QtCore import *  # QSize
+from PyQt5.QtGui import *  # QIcon,QPixmap
+from PyQt5.QtWidgets import *  # QAction,QFileDialog
+
+import components.excepthook
+import components.log
+from components.danmu import TextOpation
+from components.LayoutPanel import LayoutSettingPanel
+from components.LiverSelect import LiverPanel
+from components.VideoWidget import PushButton, Slider, VideoWidget
 
 # 程序所在路径
 application_path = os.getcwd()
-print(application_path)
-
-def _translate(context, text, disambig):
-    return QApplication.translate(context, text, disambig)
-
 
 class ControlWidget(QWidget):
     heightValue = pyqtSignal(int)
@@ -36,9 +28,8 @@ class ControlWidget(QWidget):
     def __init__(self):
         super(ControlWidget, self).__init__()
 
-    def resizeEvent(self, QResizeEvent):
+    def resizeEvent(self, e):
         self.heightValue.emit(self.height())
-
 
 class ScrollArea(QScrollArea):
     multipleTimes = pyqtSignal(int)
@@ -148,34 +139,6 @@ class CacheSetting(QWidget):
         self.setting.emit([self.maxCacheEdit.text(), self.savePathEdit.text()])
         self.hide()
 
-
-class Version(QWidget):
-    """版本说明窗口"""
-
-    def __init__(self):
-        super(Version, self).__init__()
-        self.resize(350, 150)
-        self.setWindowTitle('当前版本')
-        layout = QGridLayout(self)
-        layout.addWidget(QLabel('DD监控室 v2.6正式版'), 0, 0, 1, 2)
-        layout.addWidget(QLabel('by 神君Channel'), 1, 0, 1, 2)
-        layout.addWidget(QLabel('特别鸣谢：大锅饭 美东矿业 inkydragon'), 2, 0, 1, 2)
-        releases_url = QLabel('')
-        releases_url.setOpenExternalLinks(True)
-        releases_url.setText(_translate("MainWindow", "<html><head/><body><p><a href=\"https://space.bilibili.com/637783\">\
-<span style=\" text-decoration: underline; color:#cccccc;\">https://space.bilibili.com/637783</span></a></p></body></html>", None))
-        layout.addWidget(releases_url, 1, 1, 1, 2, Qt.AlignRight)
-
-        checkButton = QPushButton('检查更新')
-        checkButton.setFixedHeight(40)
-        checkButton.clicked.connect(self.checkUpdate)
-        layout.addWidget(checkButton, 0, 2, 1, 1)
-
-    def checkUpdate(self):
-        QDesktopServices.openUrl(
-            QUrl(r'https://github.com/zhimingshenjun/DD_Monitor/releases/tag/DD_Monitor'))
-
-
 class HotKey(QWidget):
     """热键说明窗口"""
 
@@ -218,24 +181,6 @@ class DumpConfig(QThread):
                 f.write(json.dumps(self.config, ensure_ascii=False))
         except:
             logging.exception('config_备份.json 备份配置文件写入失败')
-
-
-class CheckDanmmuProvider(QThread):
-    """检查弹幕服务器域名解析状态"""
-
-    def __init__(self):
-        super(CheckDanmmuProvider, self).__init__()
-
-    def run(self):
-        try:
-            anwsers = dns.resolver.resolve(
-                'broadcastlv.chat.bilibili.com', 'A')
-            danmu_ip = anwsers[0].to_text()
-            logging.info("弹幕IP: %s" % danmu_ip)
-        except Exception as e:
-            logging.error("解析弹幕域名失败")
-            logging.error(str(e))
-
 
 class MainWindow(QMainWindow):
     """主窗口"""
@@ -327,7 +272,7 @@ class MainWindow(QMainWindow):
         else:  # 默认和备份 json 配置均读取失败
             self.config = {
                 # 置顶显示
-                'roomid': {'21396545': False, '21402309': False, '22384516': False, '8792912': False},
+                'roomid': {},
                 'layout': [(0, 0, 1, 1), (0, 1, 1, 1), (1, 0, 1, 1), (1, 1, 1, 1)],
                 'player': ['0'] * 16,
                 'quality': [80] * 16,
@@ -355,14 +300,12 @@ class MainWindow(QMainWindow):
         self.mainLayout.setContentsMargins(0, 0, 0, 0)
         self.layoutSettingPanel = LayoutSettingPanel()
         self.layoutSettingPanel.layoutConfig.connect(self.changeLayout)
-        self.version = Version()
         self.cacheSetting = CacheSetting()
         self.cacheSetting.maxCacheEdit.setText(
             str(self.config['maxCacheSize'] // 1024000))
         self.cacheSetting.savePathEdit.setText(self.config['saveCachePath'])
         self.cacheSetting.setting.connect(self.setCache)
         self.hotKey = HotKey()
-        self.pay = pay()
         self.startLiveWindow = StartLiveWindow()
 
         # ---- 内嵌/弹出播放器初始化 ----
@@ -570,28 +513,9 @@ class MainWindow(QMainWindow):
         progressText.setText('设置选项菜单...')
 
         self.versionMenu = self.menuBar().addMenu('帮助')
-        bilibiliAction = QAction('B站视频', self, triggered=self.openBilibili)
-        self.versionMenu.addAction(bilibiliAction)
         hotKeyAction = QAction('快捷键', self, triggered=self.openHotKey)
         self.versionMenu.addAction(hotKeyAction)
-        versionAction = QAction('检查版本', self, triggered=self.openVersion)
-        self.versionMenu.addAction(versionAction)
-        otherDDMenu = self.versionMenu.addMenu('其他DD系列工具 ►')
-        DDSubtitleAction = QAction(
-            'DD烤肉机', self, triggered=self.openDDSubtitle)
-        otherDDMenu.addAction(DDSubtitleAction)
-        DDThanksAction = QAction('DD答谢机', self, triggered=self.openDDThanks)
-        otherDDMenu.addAction(DDThanksAction)
         progressText.setText('设置帮助菜单...')
-
-        self.payMenu = self.menuBar().addMenu('开源和投喂')
-        githubAction = QAction('GitHub', self, triggered=self.openGithub)
-        self.payMenu.addAction(githubAction)
-        feedAction = QAction('投喂作者', self, triggered=self.openFeed)
-        self.payMenu.addAction(feedAction)
-        # killAction = QAction('自尽(测试)', self, triggered=lambda a: 0 / 0)
-        # self.payMenu.addAction(killAction)
-        progressText.setText('设置关于菜单...')
 
         # 鼠标和计时器
         self.oldMousePos = QPoint(0, 0)  # 初始化鼠标坐标
@@ -600,8 +524,6 @@ class MainWindow(QMainWindow):
         self.mouseTrackTimer.timeout.connect(self.checkMousePos)
         self.mouseTrackTimer.start(100)  # 0.1s检测一次
         progressText.setText('设置UI...')
-        self.checkDanmmuProvider = CheckDanmmuProvider()
-        self.checkDanmmuProvider.start()
         self.loadDockLayout()
         logging.info('UI构造完毕')
 
@@ -927,34 +849,12 @@ class MainWindow(QMainWindow):
             self.cardDock.show()
             self.optionMenu.menuAction().setVisible(True)
             self.versionMenu.menuAction().setVisible(True)
-            self.payMenu.menuAction().setVisible(True)
         else:
             self.controlDock.hide()
             self.cardDock.hide()
             self.optionMenu.menuAction().setVisible(False)
             self.versionMenu.menuAction().setVisible(False)
-            self.payMenu.menuAction().setVisible(False)
         self.controlBarLayoutToken = self.controlDock.isHidden()
-
-    def openVersion(self):
-        self.version.hide()
-        self.version.show()
-
-    def openGithub(self):
-        QDesktopServices.openUrl(
-            QUrl(r'https://github.com/zhimingshenjun/DD_Monitor'))
-
-    def openBilibili(self):
-        QDesktopServices.openUrl(
-            QUrl(r'https://www.bilibili.com/video/BV14v411s7WE'))
-
-    def openDDSubtitle(self):
-        QDesktopServices.openUrl(
-            QUrl(r'https://www.bilibili.com/video/BV1p5411b7o7'))
-
-    def openDDThanks(self):
-        QDesktopServices.openUrl(
-            QUrl(r'https://www.bilibili.com/video/BV1Di4y1L7T2'))
 
     def openCacheSetting(self):
         self.cacheSetting.hide()
@@ -988,14 +888,7 @@ class MainWindow(QMainWindow):
         self.hotKey.hide()
         self.hotKey.show()
 
-    def openFeed(self):
-        self.pay.hide()
-        self.pay.show()
-        self.pay.thankToBoss.start()
-
     def checkMousePos(self):
-        # for videoWidget in self.videoWidgetList:  # vlc的播放会直接音量最大化 实在没地方放了 写在这里实时强制修改它的音量
-        #     videoWidget.player.audio_set_volume(int(videoWidget.volume * videoWidget.volumeAmplify))
         newMousePos = QCursor.pos()
         if newMousePos != self.oldMousePos:
             self.setCursor(Qt.ArrowCursor)  # 鼠标动起来就显示
@@ -1087,8 +980,6 @@ class MainWindow(QMainWindow):
             else:
                 self.showNormal()
             self.optionMenu.menuAction().setVisible(True)
-            self.versionMenu.menuAction().setVisible(True)
-            self.payMenu.menuAction().setVisible(True)
             if self.controlBarLayoutToken:
                 self.controlDock.show()
                 self.cardDock.show()
@@ -1097,8 +988,6 @@ class MainWindow(QMainWindow):
                 videoWidget.fullScreen = True
             self.maximumToken = self.isMaximized()
             self.optionMenu.menuAction().setVisible(False)
-            self.versionMenu.menuAction().setVisible(False)
-            self.payMenu.menuAction().setVisible(False)
             if self.controlBarLayoutToken:
                 self.controlDock.hide()
                 self.cardDock.hide()
@@ -1249,7 +1138,6 @@ class MainWindow(QMainWindow):
             self.startLiveWindow.show()
             self.startLiveWindow.hideTimer.start()
 
-
 # 程序入口点
 if __name__ == '__main__':
     # 平台相关 patch
@@ -1287,10 +1175,6 @@ if __name__ == '__main__':
 
     # 日志采集初始化
     components.log.init_log(application_path)
-    sys.excepthook = uncaughtExceptionHandler
-    sys.unraisablehook = unraisableExceptionHandler
-    threading.excepthook = thraedingExceptionHandler
-    loggingSystemInfo()
     # vlc 版本信息log
     import vlc
     logging.info(f"libvlc path: {vlc.dll._name}")

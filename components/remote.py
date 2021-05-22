@@ -1,15 +1,14 @@
-# -*- coding: utf-8 -*-
 """
 通过QThread + websocket获取直播弹幕并返回给播放窗口模块做展示
 """
 import asyncio
-import zlib
 import json
+import logging
+import zlib
+
 import requests
 from aiowebsocket.converses import AioWebSocket
 from PyQt5.QtCore import QThread, pyqtSignal
-import logging
-
 
 class remoteThread(QThread):
     """

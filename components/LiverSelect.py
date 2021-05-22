@@ -2,16 +2,20 @@
 DD监控室主界面上方的控制条里的ScrollArea里面的卡片模块
 包含主播开播/下播检测和刷新展示 置顶排序 录制管理等功能
 """
-import requests, json, time, codecs, logging, os
-from PyQt5.QtWidgets import * 	# QAction,QFileDialog
-from PyQt5.QtGui import *		# QIcon,QPixmap
-from PyQt5.QtCore import * 		# QSize
+import codecs
+import json
+import logging
+import os
+import time
 
+import requests
+from PyQt5.QtCore import *  # QSize
+from PyQt5.QtGui import *  # QIcon,QPixmap
+from PyQt5.QtWidgets import *  # QAction,QFileDialog
 
 header = {
     'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/71.0.3578.98 Safari/537.36'
 }
-
 
 class CardLabel(QLabel):
     def __init__(self, text='NA', fontColor='#f1fefb', size=11):
@@ -93,19 +97,6 @@ class PushButton(QPushButton):
             self.setStyleSheet('background-color:#3daee9;border-width:1px')
         else:
             self.setStyleSheet('background-color:#31363b;border-width:1px')
-
-
-# class RequestAPI(QThread):
-#     data = pyqtSignal(dict)
-#
-#     def __init__(self, roomID):
-#         super(RequestAPI, self).__init__()
-#         self.roomID = roomID
-#
-#     def run(self):
-#         r = requests.get(r'https://api.live.bilibili.com/xlive/web-room/v1/index/getInfoByRoom?room_id=%s' % self.roomID)
-#         self.data.emit(json.loads(r.text))
-
 
 class RecordThread(QThread):
     """获取直播推流并录制
@@ -1017,13 +1008,6 @@ class LiverPanel(QWidget):
                         cover.updateLabel(info)
         if roomIDStartLive:
             self.startLiveList.emit(roomIDStartLive)  # 发送开播列表
-        # if roomIDToRefresh:
-        #     self.refreshIDList.emit(roomIDToRefresh)
-        #     self.refreshPanel()  # 修改刷新策略 只有当有主播直播状态发生变化后才会刷新 降低闪退风险
-        # elif firstRefresh:
-        #     self.refreshPanel()
-        # elif not self.refreshCount % 3:  # 每20s x 3 = 1分钟强制刷新一次
-        #     self.refreshPanel()
         self.refreshPanel()
 
     def addCoverToPlayer(self, info):
@@ -1069,11 +1053,6 @@ class LiverPanel(QWidget):
                         tmpList.append(cover)
                     else:
                         cover.hide()
-                        # self.layout.addWidget(cover)
-        # for cover in self.coverList:
-        #     cover.hide()
-        #     if cover.liveState in [1, 0, -1] and cover.roomID != '0':
-        #         cover.show()
         for cnt, cover in enumerate(tmpList):
             self.layout.addWidget(cover, cnt // self.multiple, cnt % self.multiple)
             cover.show()

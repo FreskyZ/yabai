@@ -1,0 +1,10 @@
+/dist
+/.idea
+test*.*
+**/__pycache__
+/bilibili_api.egg-info
+/design
+.vscode
+Lib
+Scripts
+pyvenv.cfg

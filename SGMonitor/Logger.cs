@@ -8,7 +8,7 @@ namespace SGMonitor
         private readonly StreamWriter writer;
         public Logger()
         {
-            writer = File.AppendText("log.txt");
+            writer = new StreamWriter(File.OpenWrite("log.txt"));
         }
 
         public Logger Log(string message)
@@ -19,7 +19,14 @@ namespace SGMonitor
 
         public void Flush()
         {
-            writer.Flush();
+            try
+            {
+                writer.Flush();
+            }
+            catch
+            {
+                // ignore
+            }
         }
     }
 }

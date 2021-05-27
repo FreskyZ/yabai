@@ -5,68 +5,227 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:SGMonitor"
         mc:Ignorable="d"
-        WindowStyle="None" 
-        ResizeMode="NoResize"
-        Background="Transparent"
-        AllowsTransparency="True"
-        Height="600" MinHeight="600"
-        Width="540" MinWidth="540">
+        Title="danmuji"
+        WindowStyle="None" ResizeMode="NoResize" 
+        Background="Transparent" AllowsTransparency="True" Topmost="True"
+        Height="600" Width="320" MinWidth="320" Icon="{Binding Icon}">
     <Window.Resources>
-        <GridLength x:Key="ShadowThickness">6</GridLength>
-        <GridLength x:Key="BorderThickness">1</GridLength>
-        <SolidColorBrush x:Key="BorderLineColor">#7F7F7F7F</SolidColorBrush>
+        <local:MainWindowState x:Key="state" />
 
-        <Style x:Key="BorderSizer" TargetType="Rectangle">
+        <SolidColorBrush x:Key="BackgroundColor">#AFFFFFFF</SolidColorBrush>
+        <SolidColorBrush x:Key="OptionBackground">#CFFFFFFF</SolidColorBrush>
+        <SolidColorBrush x:Key="BorderColor">#7F7F7F7F</SolidColorBrush>
+        
+        <Style x:Key="ResizeHandle" TargetType="Rectangle">
             <Setter Property="Fill" Value="#00FFFFFF"/>
-            <EventSetter Event="MouseDown" Handler="sizer_MouseDown"/>
-            <EventSetter Event="MouseMove" Handler="sizer_MouseMove"/>
-            <EventSetter Event="MouseUp" Handler="sizer_MouseUp"/>
+            <EventSetter Event="MouseDown" Handler="handleResizeHandleMouseDown"/>
+            <EventSetter Event="MouseMove" Handler="handleResizeHandleMouseMove"/>
+            <EventSetter Event="MouseUp" Handler="handleResizeHandleMouseUp"/>
         </Style>
+        
+        <Style x:Key="LiveStateIcon" TargetType="Path">
+            <Setter Property="Width" Value="32"/>
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="Fill" Value="Orange"/>
+            <Setter Property="Data" Value="M 4 16 C 4 32 28 32 28 16 C 28 0 4 0 4 16 Z" />
+            <Setter Property="LayoutTransform">
+                <Setter.Value>
+                    <ScaleTransform ScaleX="0.36" ScaleY="0.36"/>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding DataContext.LiveStateDescription, RelativeSource={RelativeSource AncestorType=Window}}" Value="LIVE">
+                    <Setter Property="Fill" Value="Green"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding DataContext.LiveStateDescription, RelativeSource={RelativeSource AncestorType=Window}}" Value="NOT LIVE">
+                    <Setter Property="Fill" Value="Orange"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        
+        <Style x:Key="ChatStateIcon" TargetType="Path">
+            <Setter Property="Width" Value="32"/>
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="Fill" Value="Orange"/>
+            <Setter Property="Data" Value="M 4 16 C 4 32 28 32 28 16 C 28 0 4 0 4 16 Z" />
+            <Setter Property="LayoutTransform">
+                <Setter.Value>
+                    <ScaleTransform ScaleX="0.36" ScaleY="0.36"/>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding DataContext.ChatState, RelativeSource={RelativeSource AncestorType=Window}}" Value="CHAT">
+                    <Setter Property="Fill" Value="Green"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding DataContext.ChatState, RelativeSource={RelativeSource AncestorType=Window}}" Value="NOT CHAT">
+                    <Setter Property="Fill" Value="Orange"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding DataContext.ChatState, RelativeSource={RelativeSource AncestorType=Window}}" Value="ERROR">
+                    <Setter Property="Fill" Value="RED"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="OptionsButton" TargetType="Button">
+            <Setter Property="Width" Value="32" />
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Foreground" Value="#5F5F5F"/>
+            <Setter Property="LayoutTransform">
+                <Setter.Value>
+                    <RotateTransform/>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}">
+                            <Path Width="96" Height="96" 
+                                  Fill="{TemplateBinding Foreground}"
+                                  Data="M 48 32 L 20 60 L 76 60 Z">
+                                <Path.LayoutTransform>
+                                    <ScaleTransform ScaleX="-0.25" ScaleY="0.25" />
+                                </Path.LayoutTransform>
+                            </Path>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="White"/>
+                                <Setter Property="Background" Value="#3FAFCF"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding DataContext.OptionsVisible, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
+                    <Setter Property="LayoutTransform">
+                        <Setter.Value>
+                            <RotateTransform Angle="180"/>
+                        </Setter.Value>
+                    </Setter>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        
+        <Style x:Key="CloseButton" TargetType="Button">
+            <Setter Property="Width" Value="32"/>
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="#5F5F5F" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}">
+                            <Path Margin="4" Width="96" Height="96" 
+                                  Stroke="{TemplateBinding Foreground}" 
+                                  StrokeThickness="20" Data="M 40 40 L 56 56 Z M 40 56 L 56 40 Z">
+                                <Path.LayoutTransform>
+                                    <ScaleTransform ScaleX="-0.12" ScaleY="0.12" />
+                                </Path.LayoutTransform>
+                            </Path>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="White"/>
+                                <Setter Property="Background" Value="#FF3F3F"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="RefreshButton" TargetType="Button">
+            <Setter Property="Margin" Value="8 0 0 0" />
+            <Setter Property="Width" Value="24"/>
+            <Setter Property="Height" Value="24" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="#6F6F6F" />
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="4">
+                            <Path Margin="0 2 2 0" Width="1200" Height="1200" 
+                                  Stroke="{TemplateBinding Foreground}" 
+                                  StrokeThickness="80"
+                                  Data="M 909.1 209.3 l -56.4 44.1 C 775.8 155.1 656.2 92 521.9 92 C 290 92 102.3 279.5 102 511.5 C 101.7 743.7 289.8 932 521.9 932 
+                                  c 181.3 0 335.8 -115 394.6 -276.1 c 1.5 -4.2 -0.7 -8.9 -4.9 -10.3 l -56.7 -19.5 a 8 8 0 0 0 -10.1 4.8 c -1.8 5 -3.8 10 -5.9 14.9 
+                                  c -17.3 41 -42.1 77.8 -73.7 109.4 A 344.77 344.77 0 0 1 655.9 829 c -42.3 17.9 -87.4 27 -133.8 27 c -46.5 0 -91.5 -9.1 -133.8 -27 
+                                  A 341.5 341.5 0 0 1 279 755.2 a 342.16 342.16 0 0 1 -73.7 -109.4 c -17.9 -42.4 -27 -87.4 -27 -133.9 s 9.1 -91.5 27 -133.9 c 17.3 -41 42.1 -77.8 73.7 -109.4 
+                                  c 31.6 -31.6 68.4 -56.4 109.3 -73.8 c 42.3 -17.9 87.4 -27 133.8 -27 c 46.5 0 91.5 9.1 133.8 27 a 341.5 341.5 0 0 1 109.3 73.8 
+                                  c 9.9 9.9 19.2 20.4 27.8 31.4 l -60.2 47 a 8 8 0 0 0 3 14.1 l 175.6 43 c 5 1.2 9.9 -2.6 9.9 -7.7 l 0.8 -180.9 c -0.1 -6.6 -7.8 -10.3 -13 -6.2 Z">
+                                <Path.LayoutTransform>
+                                    <ScaleTransform ScaleX="-0.013" ScaleY="0.013" />
+                                </Path.LayoutTransform>
+                            </Path>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="White"/>
+                                <Setter Property="Background" Value="#8F6F6F6F"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="OptionContainer" TargetType="Border">
+            <Setter Property="BorderBrush" Value="{StaticResource BorderColor}"/>
+            <Setter Property="Visibility" Value="Collapsed"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding DataContext.OptionsVisible, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
+                    <Setter Property="Visibility" Value="Visible"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding DataContext.OptionsVisible, RelativeSource={RelativeSource AncestorType=Window}}" Value="False">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        
     </Window.Resources>
-    <Grid>
-        <Grid.ColumnDefinitions>
-            <!-- left shadown, left border, main grid, right border, right shadown -->
-            <ColumnDefinition Width="{StaticResource ShadowThickness}"/>
-            <ColumnDefinition Width="{StaticResource BorderThickness}"/>
-            <ColumnDefinition/>
-            <ColumnDefinition Width="{StaticResource BorderThickness}"/>
-            <ColumnDefinition Width="{StaticResource ShadowThickness}"/>
-        </Grid.ColumnDefinitions>
-        <Grid.RowDefinitions>
-            <!-- top shadow, top border, main grid, bottom border, bottom shadown -->
-            <RowDefinition Height="{StaticResource ShadowThickness}"/>
-            <RowDefinition Height="{StaticResource BorderThickness}"/>
-            <RowDefinition/>
-            <RowDefinition Height="{StaticResource BorderThickness}"/>
-            <RowDefinition Height="{StaticResource ShadowThickness}"/>
-        </Grid.RowDefinitions>
-
-        <Border Grid.Row="2" Grid.Column="2">
-            <Border.Effect>
-                <DropShadowEffect BlurRadius="12" Color="Black" Opacity="0.45" ShadowDepth="0"/>
-            </Border.Effect>
-            <Grid Background="#00FFFFFF">
-                <!-- main grid -->
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="28"/>
-                    <RowDefinition Height="*"/>
-                </Grid.RowDefinitions>
-
-                <Grid Background="White">
-                    <!-- header row -->
+    <Window.DataContext>
+        <Binding Source="{StaticResource state}"/>
+    </Window.DataContext>
+    <Border>
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="12" Color="#3F3F3F" Opacity="0.45" ShadowDepth="1"/>
+        </Border.Effect>
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="6"/>
+                <ColumnDefinition/>
+                <ColumnDefinition Width="6"/>
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="6"/>
+                <RowDefinition Height="30"/>
+                <RowDefinition Height="28"/>
+                <RowDefinition Height="28"/>
+                <RowDefinition Height="24"/>
+                <RowDefinition Height="28"/>
+                <RowDefinition />
+            </Grid.RowDefinitions>
+        
+            <Rectangle Tag="left" Grid.RowSpan="7" Cursor="SizeWE" Fill="#01FFFFFF" Style="{StaticResource ResizeHandle}"/>
+            <Rectangle Tag="right" Grid.RowSpan="7" Grid.Column="2" Cursor="SizeWE" Fill="#01FFFFFF" Style="{StaticResource ResizeHandle}"/>
+        
+            <!-- row 1: avatar, title, state, toggle options, close -->
+            <Border Grid.Row="1" Grid.Column="1" BorderThickness="1" BorderBrush="{StaticResource BorderColor}">
+                <Grid Background="{StaticResource BackgroundColor}">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="120"/>
+                        <ColumnDefinition/>
+                        <ColumnDefinition Width="96" />
                     </Grid.ColumnDefinitions>
-                    <StackPanel Orientation="Horizontal" Margin="8 0 0 0" Background="#00FFFFFF" MouseDown="title_MouseDown">
-                        <Image x:Name="imageAvatar" Margin="0 4 0 2" RenderOptions.BitmapScalingMode="HighQuality">
+
+                    <StackPanel x:Name="stackpanelTitle" Background="#01FFFFFF" Orientation="Horizontal" Margin="8 0 0 0">
+                        <Image Margin="0 4 0 2" RenderOptions.BitmapScalingMode="HighQuality" Source="{Binding Icon}">
                             <Image.Clip>
-                                <RectangleGeometry RadiusX="10" RadiusY="10" Rect="0,0,24,24"></RectangleGeometry>
+                                <RectangleGeometry RadiusX="12" RadiusY="12" Rect="0,0,24,24"></RectangleGeometry>
                             </Image.Clip>
                         </Image>
-                        <TextBlock x:Name="textblockLiveTitle" Margin="8 0 0 0"
-                                   TextTrimming="CharacterEllipsis" VerticalAlignment="Center" MaxWidth="100"> - </TextBlock>
-                        <TextBlock x:Name="textblockLiveTime" VerticalAlignment="Center" Margin="8 0 0 0"></TextBlock>
+                        <TextBlock Margin="8 0 0 0" Text="{Binding LiveTitle}" ToolTip="{Binding LiveTitle}"
+                                   TextTrimming="CharacterEllipsis" VerticalAlignment="Center" MaxWidth="100" />
                         <Grid Margin="8 0 0 0">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="16"/>
@@ -76,50 +235,91 @@
                                 <RowDefinition Height="14"/>
                                 <RowDefinition Height="14"/>
                             </Grid.RowDefinitions>
-                            <Path x:Name="pathLivingStateIcon" Width="32" Height="32" 
-                                  Fill="Orange" Data="M 4 16 C 4 32 28 32 28 16 C 28 0 4 0 4 16 Z">
-                                <Path.LayoutTransform>
-                                    <ScaleTransform ScaleX="0.36" ScaleY="0.36"></ScaleTransform>
-                                </Path.LayoutTransform>
-                            </Path>
-                            <TextBlock x:Name="textblockLivingState" Grid.Row="0" Grid.Column="1" FontSize="10" VerticalAlignment="Bottom">NOT LIVE</TextBlock>
-                            <Rectangle x:Name="rectLivingState" Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2" Fill="#00FFFFFF" ToolTip="NOT LIVE"/>
-                            <Path x:Name="pathDanmuServerStateIcon" Grid.Row="1" Grid.Column="0" Width="32" Height="32" 
-                                  Fill="Orange" Data="M 4 16 C 4 32 28 32 28 16 C 28 0 4 0 4 16 Z">
-                                <Path.LayoutTransform>
-                                    <ScaleTransform ScaleX="0.36" ScaleY="0.36"></ScaleTransform>
-                                </Path.LayoutTransform>
-                            </Path>
-                            <TextBlock x:Name="textblockDanmuServerState" Grid.Row="1" Grid.Column="1" FontSize="10" VerticalAlignment="Bottom">NOT DANMU</TextBlock>
-                            <Rectangle x:Name="rectDanmuServerState" Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Fill="#00FFFFFF" ToolTip="DANMU NOT CONNECTED"/>
+                            <Path Style="{StaticResource LiveStateIcon}"/>
+                            <TextBlock Grid.Column="1" FontSize="10" VerticalAlignment="Bottom" Text="{Binding LiveStateDescription}"/>
+                            <Rectangle x:Name="rectangleLiveStateTooltipProvider" Grid.ColumnSpan="2" Fill="#00FFFFFF" />
+                            <Path Grid.Row="1" Style="{StaticResource ChatStateIcon}" />
+                            <TextBlock Grid.Row="1" Grid.Column="1" FontSize="10" VerticalAlignment="Bottom" Text="{Binding ChatState}"/>
+                            <Rectangle Grid.Row="1" Grid.ColumnSpan="2" Fill="#00FFFFFF" ToolTip="{Binding ChatStateDescription}"/>
                         </Grid>
-                        <ComboBox x:Name="comboboxLines" Height="20" Width="80" Margin="8 0 0 0"></ComboBox>
                     </StackPanel>
+                    
+                    <!-- header row buttons -->
                     <StackPanel Orientation="Horizontal" FlowDirection="RightToLeft" Grid.Column="1">
-                        <Button Click="close_Click">EXT</Button>
-                        <Button Click="minimize_Click">MIN</Button>
-                        <Button Click="setting_Click">SET</Button>
-                        <Button Click="reload_Click">REL</Button>
+                        <Button x:Name="buttonClose" Style="{StaticResource CloseButton}" />
+                        <Button x:Name="buttonOptions" Style="{StaticResource OptionsButton}"/>
+                        <Button Click="handleRefresh" Style="{StaticResource RefreshButton}"/>
                     </StackPanel>
                 </Grid>
+            </Border>
 
-                <StackPanel x:Name="stackpanelDanmu" Grid.Row="1"></StackPanel>
-            </Grid>
-        </Border>
-        
-        <Rectangle x:Name="rectLeftBorderLine" Grid.Column="1" Grid.Row="1" Grid.RowSpan="2" Fill="{StaticResource BorderLineColor}"/>
-        <Rectangle x:Name="rectRightBorderLine" Grid.Column="3" Grid.Row="1" Grid.RowSpan="2" Fill="{StaticResource BorderLineColor}"/>
-        <Rectangle x:Name="rectTopBorderLine" Grid.Column="1" Grid.Row="1" Grid.ColumnSpan="2" Fill="{StaticResource BorderLineColor}"/>
-        <Rectangle x:Name="rectBottomBorderLine" Grid.Column="1" Grid.Row="3" Grid.ColumnSpan="3" Fill="{StaticResource BorderLineColor}"/>
+            <StackPanel x:Name="stackpanelChat" Grid.Row="2" Grid.RowSpan="7" Grid.Column="1">
+                <!--<Border BorderThickness="1 0 1 1" BorderBrush="#7F7F7F7F">
+                    <TextBlock x:Name="textblockchat0" Background="#C0FFFFFF" FontSize="{Binding DisplayFontSize}" Padding="4 2" TextWrapping="Wrap">[财布 21] 少年Pi: 血口喷人</TextBlock>
+                </Border>
+                <Border BorderThickness="1 0 1 1" BorderBrush="#7F7F7F7F">
+                    <TextBlock x:Name="textblockchat1" Background="#C0E7F2F9" FontSize="{Binding DisplayFontSize}" Padding="4 2" TextWrapping="Wrap">[财布 21] 少年Pi: 血口喷人</TextBlock>
+                </Border>
+                <Border BorderThickness="1 0 1 1" BorderBrush="#7F7F7F7F">
+                    <TextBlock x:Name="textblockchat2" Background="#C0EFAFAF" FontSize="{Binding DisplayFontSize}" Padding="4 2" TextWrapping="Wrap">
+                    [财布 21] 少年Pi: 血口喷人血口喷人血口喷人血口喷人血口喷人血口喷人血口喷人血口喷人血口喷人血口喷人</TextBlock>
+                </Border>
+                <Border BorderThickness="1 0 1 1" BorderBrush="#7F7F7F7F">
+                    <TextBlock x:Name="textblockchat3" Background="#C0FFFFFF" FontSize="{Binding DisplayFontSize}" Padding="4 2" TextWrapping="Wrap">[财布 21] 少年Pi: 血口喷人</TextBlock>
+                </Border>
+                <Border BorderThickness="1 0 1 1" BorderBrush="#7F7F7F7F">
+                    <TextBlock x:Name="textblockchat4" Background="#C0FFFFFF" FontSize="{Binding DisplayFontSize}" Padding="4 2" TextWrapping="Wrap">[财布 21] 少年Pi: 血口喷人</TextBlock>
+                </Border>
+                <Border BorderThickness="1 0 1 1" BorderBrush="#7F7F7F7F">
+                    <TextBlock x:Name="textblockchat5" Background="#C0E7F2F9" FontSize="{Binding DisplayFontSize}" Padding="4 2" TextWrapping="Wrap">[财布 21] 少年Pi: 血口喷人</TextBlock>
+                </Border>
+                <Border BorderThickness="1 0 1 1" BorderBrush="#7F7F7F7F">
+                    <TextBlock x:Name="textblockchat6" Background="#C0EFAFAF" FontSize="{Binding DisplayFontSize}" Padding="4 2" TextWrapping="Wrap">
+                    [财布 21] 少年Pi: 血口喷人血口喷人血口喷人血口喷人血口喷人血口喷人血口喷人血口喷人血口喷人血口喷人</TextBlock>
+                </Border>
+                <Border BorderThickness="1 0 1 1" BorderBrush="#7F7F7F7F">
+                    <TextBlock x:Name="textblockchat7" Background="#C0FFFFFF" FontSize="{Binding DisplayFontSize}" Padding="4 2" TextWrapping="Wrap">[财布 21] 少年Pi: 血口喷人</TextBlock>
+                </Border>
+                <Border BorderThickness="1 0 1 1" BorderBrush="#7F7F7F7F">
+                    <TextBlock x:Name="textblockchat8" Background="#C0EFAFAF" FontSize="{Binding DisplayFontSize}" Padding="4 2" TextWrapping="Wrap">
+                    [财布 21] 少年Pi: 血口喷人血口喷人血口喷人血口喷人血口喷人血口喷人血口喷人血口喷人血口喷人血口喷人</TextBlock>
+                </Border>-->
+            </StackPanel>
 
-        <Rectangle x:Name="rectLeftBorderSizer" Grid.Column="0" Grid.Row="1" Grid.RowSpan="3" Cursor="SizeWE" Style="{StaticResource BorderSizer}"/>
-        <Rectangle x:Name="rectRightBorderSizer" Grid.Column="4" Grid.Row="1" Grid.RowSpan="3" Cursor="SizeWE" Style="{StaticResource BorderSizer}"/>
-        <Rectangle x:Name="rectTopBorderSizer" Grid.Column="1" Grid.Row="0" Grid.ColumnSpan="3" Cursor="SizeNS" Style="{StaticResource BorderSizer}"/>
-        <Rectangle x:Name="rectBottomBorderSizer" Grid.Column="1" Grid.Row="4" Grid.ColumnSpan="3" Cursor="SizeNS" Style="{StaticResource BorderSizer}"/>
+            <!-- row 2: room id, refresh -->
+            <Border Grid.Column="1" Grid.Row="2" BorderThickness="1 0 1 1" Style="{StaticResource OptionContainer}">
+                <StackPanel Orientation="Horizontal" Background="{StaticResource OptionBackground}">
+                    <TextBlock VerticalAlignment="Center" Margin="8 0 0 0">Room Id</TextBlock>
+                    <TextBox x:Name="textboxRoomId" Width="72" Margin="8 0 0 0" MaxLength="10" VerticalAlignment="Center" Text="{Binding Path=RoomId, Mode=TwoWay}"/>
+                </StackPanel>
+            </Border>
 
-        <Rectangle x:Name="rectLeftTopBorderSizer" Grid.Column="0" Grid.Row="0" Cursor="SizeNWSE" Style="{StaticResource BorderSizer}"/>
-        <Rectangle x:Name="rectLeftBottomBorderSizer" Grid.Column="0" Grid.Row="4" Cursor="SizeNESW" Style="{StaticResource BorderSizer}"/>
-        <Rectangle x:Name="rectRightTopBorderSizer" Grid.Column="4" Grid.Row="0" Cursor="SizeNESW" Style="{StaticResource BorderSizer}"/>
-        <Rectangle x:Name="rectRightBottomBorderSizer" Grid.Column="4" Grid.Row="4" Cursor="SizeNWSE" Style="{StaticResource BorderSizer}"/>
-    </Grid>
+            <!-- row 3: line list, row 4: line opener -->
+            <Border Grid.Column="1" Grid.Row="3" BorderThickness="1 0 1 0" Style="{StaticResource OptionContainer}">
+                <StackPanel Orientation="Horizontal" Background="{StaticResource OptionBackground}">
+                    <TextBlock VerticalAlignment="Center" Margin="8 2 0 0">Lines</TextBlock>
+                    <ComboBox x:Name="comboboxLines" Height="20" Width="80" Margin="8 3 0 0" ItemsSource="{Binding URLNames}" />
+                    <Button x:Name="buttonCopyLine" Height="20" Margin="12 3 0 0" Padding="8 2 8 0" FontSize="10">COPY</Button>
+                    <Button x:Name="buttonOpenLine" Height="20" Margin="12 3 0 0" Padding="8 2 8 0" FontSize="10">OPEN</Button>
+                </StackPanel>
+            </Border>
+            <Border Grid.Column="1" Grid.Row="4" BorderThickness="1 0 1 1" Style="{StaticResource OptionContainer}">
+                <StackPanel Orientation="Horizontal" Background="{StaticResource OptionBackground}">
+                    <TextBlock  Margin="8 4 0 0">Media Player</TextBlock>
+                    <TextBox VerticalAlignment="Top" Width="208" Margin="8 4 0 0" FontSize="10" Text="{Binding URLOpener, Mode=TwoWay}"/>
+                </StackPanel>
+            </Border>
+
+            <!-- row 5: display item count -->
+            <Border Grid.Column="1" Grid.Row="5" BorderThickness="1 0 1 1" Style="{StaticResource OptionContainer}">
+                <StackPanel Orientation="Horizontal" Background="{StaticResource OptionBackground}">
+                    <TextBlock VerticalAlignment="Center" Margin="8 0 0 0">Display</TextBlock>
+                    <TextBox VerticalAlignment="Center" Margin="8 0 0 0" MinWidth="20" Text="{Binding DisplayCount}"/>
+                    <TextBlock VerticalAlignment="Center" Margin="8 0 0 0">Items</TextBlock>
+                    <TextBlock VerticalAlignment="Center" Margin="8 0 0 0">Font Size</TextBlock>
+                    <TextBox VerticalAlignment="Center" Margin="8 0 0 0" MinWidth="20" Text="{Binding ConfigFontSize, Mode=TwoWay}"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Border>
 </Window>

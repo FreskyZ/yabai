@@ -9,38 +9,22 @@ using System.Text;
 
 namespace SGMonitor
 {
-    internal class LiveInfo
+    internal struct LiveInfo
     {
         private static readonly HttpClient httpClient = new();
-        // see https://github.com/Passkou/bilibili-api/blob/main/bilibili_api/data/api.json
 
-        private readonly Logger logger;
-        public LiveInfo(Logger logger)
+        public bool Living { get; init; }
+        public DateTime StartTime { get; init; }
+        public string LiveTitle { get; init; }
+        public string LiverName { get; init; }
+        public byte[] LiverAvatar { get; init; }
+        public string[] StreamURLs { get; init; }
+
+        private static async Task<(bool living, DateTime start, string title, string name, byte[] avatar)> GetRoomPlayInfo(int room_id, Logger logger)
         {
-            this.logger = logger;
-
-            StartTime = DateTime.UnixEpoch;
-        }
-
-        public int RoomId { get; set; }
-        public bool Living { get; private set; }
-        public DateTime StartTime { get; private set; }
-        public string LiveTitle { get; private set; }
-        public string LiverName { get; private set; }
-        public byte[] LiverAvatar { get; private set; }
-        public string[] StreamURLs { get; private set; }
-
-        private async Task GetRoomPlayInfo()
-        {
-            Living = false;
-            StartTime = DateTime.UnixEpoch;
-            LiveTitle = null;
-            LiverName = null;
-            LiverAvatar = null;
-
             using var query = new FormUrlEncodedContent(new Dictionary<string, string>
             {
-                ["room_id"] = RoomId.ToString(),
+                ["room_id"] = room_id.ToString(),
             });
             var response = await httpClient.GetAsync(new UriBuilder
             {
@@ -59,17 +43,22 @@ namespace SGMonitor
             var content = await response.Content.ReadAsStringAsync();
             logger.Log($"GET {response.RequestMessage.RequestUri} content {content}");
 
-            string avatarURL = null;
+            var living = false;
+            var start_time = DateTime.UnixEpoch;
+            string title = null;
+            string name = null;
+            string avatar_url = null;
+
             try
             {
                 var document = await JsonDocument.ParseAsync(new MemoryStream(Encoding.UTF8.GetBytes(content)));
                 var data = document.RootElement.GetProperty("data");
 
-                Living = data.GetProperty("room_info").GetProperty("live_status").GetInt32() == 1;
-                StartTime = DateTime.UnixEpoch.AddTicks(data.GetProperty("room_info").GetProperty("live_start_time").GetInt64() * TimeSpan.TicksPerSecond);
-                LiveTitle = data.GetProperty("room_info").GetProperty("title").GetString();
-                LiverName = data.GetProperty("anchor_info").GetProperty("base_info").GetProperty("uname").GetString();
-                avatarURL = data.GetProperty("anchor_info").GetProperty("base_info").GetProperty("face").GetString();
+                living = data.GetProperty("room_info").GetProperty("live_status").GetInt32() == 1;
+                start_time = DateTime.UnixEpoch.AddTicks(data.GetProperty("room_info").GetProperty("live_start_time").GetInt64() * TimeSpan.TicksPerSecond);
+                title = data.GetProperty("room_info").GetProperty("title").GetString();
+                name = data.GetProperty("anchor_info").GetProperty("base_info").GetProperty("uname").GetString();
+                avatar_url = data.GetProperty("anchor_info").GetProperty("base_info").GetProperty("face").GetString();
             }
             catch (Exception e) when (e is JsonException 
                 || e is InvalidOperationException || e is KeyNotFoundException || e is IndexOutOfRangeException)
@@ -78,34 +67,35 @@ namespace SGMonitor
                 throw new InvalidOperationException("failed to get live info: failed to parse content");
             }
 
-            if (avatarURL != null)
+            byte[] avatar = null;
+            if (avatar_url != null)
             {
-                response = await httpClient.GetAsync(avatarURL);
+                response = await httpClient.GetAsync(avatar_url);
                 if (!response.IsSuccessStatusCode)
                 {
                     logger.Log($"GET {response.RequestMessage.RequestUri} failed with status {response.StatusCode}");
                 }
 
-                LiverAvatar = await response.Content.ReadAsByteArrayAsync();
-                logger.Log($"GET {response.RequestMessage.RequestUri} content length {LiverAvatar.Length}");
+                avatar = await response.Content.ReadAsByteArrayAsync();
+                logger.Log($"GET {response.RequestMessage.RequestUri} content length {avatar.Length}");
 
-                if (LiverAvatar.Length == 0) // will this happen?
+                if (avatar.Length == 0) // will this happen?
                 {
-                    LiverAvatar = null;
+                    avatar = null;
                 }
             }
-        }
-        private async Task GetRoomPlayUrl()
-        {
-            StreamURLs = new string[0];
 
+            return (living, start_time, title, name, avatar);
+        }
+        private static async Task<string[]> GetRoomPlayUrl(int room_id, Logger logger)
+        {
             using var query = new FormUrlEncodedContent(new Dictionary<string, string>
             {
                 ["qn"] = "10000",   // video quality, 10000 for original quality
                 ["platform"] = "web",
                 ["ptype"] = "16",
                 ["https_url_req"] = "1",
-                ["cid"] = RoomId.ToString(),
+                ["cid"] = room_id.ToString(),
             });
             var response = await httpClient.GetAsync(new UriBuilder
             {
@@ -129,7 +119,7 @@ namespace SGMonitor
                 var document = await JsonDocument.ParseAsync(new MemoryStream(Encoding.UTF8.GetBytes(content)));
                 var data = document.RootElement.GetProperty("data");
 
-                StreamURLs = data.GetProperty("durl")
+                return data.GetProperty("durl")
                     .EnumerateArray().Select(durl => durl.GetProperty("url").GetString()).ToArray();
             }
             catch (Exception e) when (e is JsonException
@@ -139,9 +129,17 @@ namespace SGMonitor
                 throw new InvalidOperationException("failed to get live info: failed to parse content");
             }
         }
-        public async Task Refresh()
+        public static async Task<LiveInfo> Load(int room_id, Logger logger)
         {
-            await Task.WhenAll(GetRoomPlayInfo(), GetRoomPlayUrl());
+            // amazingly var [info, url] = await Task.WhenAll(task1, task2) is not in .net
+
+            var info_task = GetRoomPlayInfo(room_id, logger);
+            var url_task = GetRoomPlayUrl(room_id, logger);
+            await Task.WhenAll(info_task, url_task);
+
+            var (living, start, title, name, avatar) = await info_task;
+            var urls = await url_task;
+            return new LiveInfo { Living = living, StartTime = start, LiveTitle = title, LiverName = name, LiverAvatar = avatar, StreamURLs = urls };
         }
     }
 }

@@ -1,9 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
+using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
-using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -11,6 +14,7 @@ using System.Windows.Data;
 using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
@@ -18,176 +22,223 @@ using System.Windows.Threading;
 
 namespace SGMonitor
 {
+	public class MainWindowState : INotifyPropertyChanged
+	{
+		private ImageSource p_Icon = null; 
+		public ImageSource Icon { get => p_Icon; set { p_Icon = value; Notify(); } }
+
+		private string p_LiveTitle = "-"; 
+		public string LiveTitle { get => p_LiveTitle; set { p_LiveTitle = value; Notify(); } }
+
+		private bool p_LiveState = false; 
+		public bool LiveState { set { p_LiveState = value; Notify(nameof(LiveStateDescription)); } } 
+		public string LiveStateDescription { get => p_LiveState ? "LIVE" : "NOT LIVE"; }
+		public DateTime LiveStartTime { get; set; }
+
+		private string p_ChatState = "NOT CHAT";
+		public string ChatState { get => p_ChatState; set { p_ChatState = value; Notify(); Notify(nameof(ChatStateDescription)); } }
+		public string ChatStateDescription { get => p_ChatState == "NOT CHAT" ? "CHAT SERVER NOT CONNECTED" : p_ChatState == "CHAT" ? "CHAT SERVER CONNECTED" : "CHAT SERVER CONNECT ERROR"; }
+
+		private bool p_OptionsVisible = false;
+		public bool OptionsVisible { get => p_OptionsVisible; set { p_OptionsVisible = value; Notify(); } }
+
+		private string p_RoomId = "92613";
+		public string RoomId { get => p_RoomId; set { p_RoomId = value; Notify(); } }
+
+		private string[] p_URLs = Array.Empty<string>();
+		public string[] URLs { get => p_URLs; set { p_URLs = value; Notify(nameof(URLNames)); } }
+		public string[] URLNames { get => p_URLs.Select((_, index) => $"Line {index + 1}").ToArray(); }
+
+		private string p_URLOpener = @"C:\Program Files\DAUM\PotPlayer\PotPlayerMini64.exe";
+		public string URLOpener { get => p_URLOpener; set { p_URLOpener = value; Notify(); } }
+
+		private int p_DisplayCount = 20;
+		public int DisplayCount { get => p_DisplayCount; set { p_DisplayCount = value; Notify(); } }
+
+		private double p_DisplayFontSize = 16;
+		public double DisplayFontSize { get => p_DisplayFontSize; }
+		public string ConfigFontSize { get => p_DisplayFontSize.ToString(); set { if (double.TryParse(value, out var v)) { p_DisplayFontSize = v; Notify(); Notify(nameof(DisplayFontSize)); } } }
+
+		public event PropertyChangedEventHandler PropertyChanged;
+		private void Notify([CallerMemberName] string propertyName = "")
+		{
+			PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+		}
+	}
+
     public partial class MainWindow : Window
-    {
-        private readonly Logger logger;
-        private readonly LiveInfo info;
+	{
+		private static readonly Regex s_number = new(@"^\d+$");
+
+		private readonly MainWindowState state;
+		private readonly Logger logger;
         public MainWindow()
         {
             InitializeComponent();
+			state = DataContext as MainWindowState;
 
 			logger = new Logger();
-			info = new LiveInfo(logger);
+			chat = new LiveChatClient(logger);
+			chat.Chat += handleChat;
+
+			textblockchats = new TextBlock[] 
+			{
+				//textblockchat0,
+				//textblockchat1,
+				//textblockchat2,
+				//textblockchat3,
+				//textblockchat4,
+				//textblockchat5,
+				//textblockchat6,
+				//textblockchat7,
+				//textblockchat8,
+				//textblockchat9,
+			};
+			last_textblock_index = 0;
 
 			var timer = new DispatcherTimer { Interval = new TimeSpan(0, 0, 1) };
             timer.Tick += Timer_Tick;
 			timer.Start();
 
-			Application.Current.Exit += Application_Exit;
-        }
-
-        private void Application_Exit(object sender, ExitEventArgs e)
-		{
-			try { logger.Flush(); } catch { /* ignore */ }
-		}
-		
-		private void close_Click(object sender, RoutedEventArgs e)
-        {
-			Close();
-        }
-		private void minimize_Click(object sender, RoutedEventArgs e)
-        {
-			WindowState = WindowState.Minimized;
-        }
-
-		private void setting_Click(object sender, RoutedEventArgs e)
-        {
-			// TODO
-        }
-
-		private void Timer_Tick(object sender, EventArgs e)
-		{
-			if (info.StartTime != DateTime.UnixEpoch)
-            {
-				textblockLiveTime.Text = (DateTime.UtcNow - info.StartTime).ToString(@"hh\:mm\:ss");
-            }
+			// small event handlers
+			buttonClose.Click += (s, e) => Close();
+			stackpanelTitle.MouseDown += (s, e) => DragMove();
+			textboxRoomId.PreviewTextInput += (s, e) => e.Handled = !s_number.IsMatch(e.Text);
+			buttonOptions.Click += (s, e) => state.OptionsVisible = !state.OptionsVisible;
+			buttonCopyLine.Click += (s, e) => Clipboard.SetData(DataFormats.Text, state.URLs[comboboxLines.SelectedIndex]);
+			buttonOpenLine.Click += (s, e) => System.Diagnostics.Process.Start(state.URLOpener, $"\"{state.URLs[comboboxLines.SelectedIndex]}\"");
+			Application.Current.Exit += (s, e) => logger.Flush();
 		}
 
-		private async void reload_Click(object sender, RoutedEventArgs e)
+        private void Timer_Tick(object sender, EventArgs e)
+		{
+			if (state.LiveStartTime != DateTime.UnixEpoch)
+			{
+				rectangleLiveStateTooltipProvider.ToolTip = (DateTime.UtcNow - state.LiveStartTime).ToString(@"hh\:mm\:ss");
+			}
+		}
+
+		private LiveInfo info;
+		private static BitmapImage ConvertToImage(byte[] bytes)
+		{
+			var image = new BitmapImage();
+			using var stream = new MemoryStream(bytes);
+			stream.Position = 0;
+			image.BeginInit();
+			image.CreateOptions = BitmapCreateOptions.PreservePixelFormat;
+			image.CacheOption = BitmapCacheOption.OnLoad;
+			image.UriSource = null;
+			image.StreamSource = stream;
+			image.EndInit();
+			image.Freeze();
+			return image;
+		}
+		private async void handleRefresh(object sender, RoutedEventArgs e)
         {
             try
             {
-				info.RoomId = 92613;
-
-                await info.Refresh();
-
-				textblockLiveTitle.Text = $"{info.LiverName} - {info.LiveTitle}";
-				textblockLiveTitle.ToolTip = textblockLiveTitle.Text;
-				pathLivingStateIcon.Fill = new SolidColorBrush(info.Living ? Colors.Green : Colors.Orange);
-				textblockLivingState.Text = info.Living ? "LIVE" : "NOT LIVE";
-				rectLivingState.ToolTip = info.Living ? "LIVE" : "NOT LIVE";
-
-				comboboxLines.Items.Clear();
-				for (var i = 0; i < info.StreamURLs.Length; ++i)
-                {
-					var item = new ComboBoxItem { Content = $"Line {i + 1}", Tag = i, ToolTip = "Click to Copy URL" };
-                    item.Selected += line_Selected;
-					comboboxLines.Items.Add(item);
-                }
-				comboboxLines.SelectedIndex = 0;
+				var room_id = int.Parse(state.RoomId);
+				info = await LiveInfo.Load(room_id, logger);
 
 				if (info.LiverAvatar != null)
 				{
-					var image = new BitmapImage();
-					using var stream = new MemoryStream(info.LiverAvatar);
-					stream.Position = 0;
-					image.BeginInit();
-					image.CreateOptions = BitmapCreateOptions.PreservePixelFormat;
-					image.CacheOption = BitmapCacheOption.OnLoad;
-					image.UriSource = null;
-					image.StreamSource = stream;
-					image.EndInit();
-					image.Freeze();
-
+					var image = ConvertToImage(info.LiverAvatar);
 					Icon = image;
-					imageAvatar.Source = image;
+					state.Icon = image;
 				}
+				state.LiveState = true;
+				state.LiveStartTime = info.StartTime;
+			 	state.LiveTitle = $"{info.LiverName} - {info.LiveTitle}";
+				Title = $"{state.LiveTitle} - danmuji";
+				state.LiveState = info.Living;
+
+				state.URLs = info.StreamURLs;
+				comboboxLines.SelectedIndex = 0;
+				if (info.StreamURLs.Length > 0)
+				{
+					Clipboard.SetData(DataFormats.Text, info.StreamURLs[0]);
+				}
+
+				// await chat.Start(room_id);
+				state.ChatState = "CHAT";
 			}
             catch
             {
                 MessageBox.Show("not very success");
             }
-        }
+		}
 
-        private void line_Selected(object sender, RoutedEventArgs e)
+		private LiveChatClient chat;
+		private TextBlock[] textblockchats;
+		private int last_textblock_index;
+		private void handleChat(object sender, LiveChat message)
         {
-			var item = sender as ComboBoxItem;
-			var index = (int)item.Tag;
-			Clipboard.SetData(DataFormats.Text, info.StreamURLs[index]);
+			textblockchats[last_textblock_index].Text = message.Content;
+			last_textblock_index = last_textblock_index == 9 ? 0 : last_textblock_index + 1;
         }
 
-		private void title_MouseDown(object sender, MouseButtonEventArgs e)
-        {
-			DragMove();
-        }
-
-        #region Border
-        private bool m_IsMouseDownSizer;
+		#region Border
+		private bool m_IsMouseDownSizer;
 		private double m_SizerPrevX;
 		private double m_SizerPrevY;
 		private double m_PrevLeft, m_PrevTop;
 		private double m_PrevWidth, m_PrevHeight;
-		private void sizer_MouseDown(object sender, MouseButtonEventArgs e)
+		private void handleResizeHandleMouseDown(object sender, MouseButtonEventArgs e)
 		{
-			var rect = sender as Rectangle;
-
 			m_IsMouseDownSizer = true;
-			rect.CaptureMouse();
+			(sender as Rectangle).CaptureMouse();
+
+
+			var current_position = Native.GetCursorPosition();
 			m_PrevTop = Top;
 			m_PrevLeft = Left;
 			m_PrevWidth = Width;
 			m_PrevHeight = Height;
-
-			var pt = Native.GetCursorPosition();
-
-			m_SizerPrevX = pt.X;
-			m_SizerPrevY = pt.Y;
+			m_SizerPrevX = current_position.X;
+			m_SizerPrevY = current_position.Y;
 		}
-
-        private void sizer_MouseUp(object sender, MouseButtonEventArgs e)
+        private void handleResizeHandleMouseUp(object sender, MouseButtonEventArgs e)
 		{
-			var rect = sender as Rectangle;
-
 			m_IsMouseDownSizer = false;
-			rect.ReleaseMouseCapture();
+			(sender as Rectangle).ReleaseMouseCapture();
 		}
-		private void sizer_MouseMove(object sender, MouseEventArgs e)
+		private void handleResizeHandleMouseMove(object sender, MouseEventArgs e)
 		{
 			if (m_IsMouseDownSizer)
 			{
-				var pt = Native.GetCursorPosition();
-				double offx = pt.X - m_SizerPrevX;
-				double offy = pt.Y - m_SizerPrevY;
+				var current_position = Native.GetCursorPosition();
+				double offx = current_position.X - m_SizerPrevX;
+				double offy = current_position.Y - m_SizerPrevY;
 
-				if (sender == rectLeftBorderSizer || sender == rectLeftTopBorderSizer || sender == rectLeftBottomBorderSizer)
+				var tag = (sender as Rectangle).Tag as string;
+
+				if (tag.Contains("left"))
 				{
-					// for left
 					offx = (m_PrevWidth - offx) >= MinWidth 
 						? ((m_PrevWidth - offx) > MaxWidth ? (m_PrevWidth - MaxWidth) : offx)
 						: (m_PrevWidth - MinWidth);
 					Width = m_PrevWidth - offx;
 					Left = m_PrevLeft + offx;
 				}
-				if (sender == rectRightBorderSizer || sender == rectRightTopBorderSizer || sender == rectRightBottomBorderSizer)
+				if (tag.Contains("top"))
 				{
-					// for right
-					offx = (m_PrevWidth + offx) >= MinWidth 
-						? ((m_PrevWidth + offx) > MaxWidth ? (MaxWidth - m_PrevWidth) : offx)
-						: (MinWidth - m_PrevWidth);
-					Width = m_PrevWidth + offx;
-				}
-				if (sender == rectTopBorderSizer || sender == rectLeftTopBorderSizer || sender == rectRightTopBorderSizer)
-				{
-					// for top
 					offy = (m_PrevHeight - offy) >= MinHeight
 						? ((m_PrevHeight - offy) > MaxHeight ? (m_PrevHeight - MaxHeight) : offy)
 						: (m_PrevHeight - MinHeight);
 					Top = m_PrevTop + offy;
 					Height = m_PrevHeight - offy;
 				}
-				if (sender == rectBottomBorderSizer || sender == rectLeftBottomBorderSizer || sender == rectRightBottomBorderSizer)
+				if (tag.Contains("right"))
 				{
-					// for down
+					offx = (m_PrevWidth + offx) >= MinWidth 
+						? ((m_PrevWidth + offx) > MaxWidth ? (MaxWidth - m_PrevWidth) : offx)
+						: (MinWidth - m_PrevWidth);
+					Width = m_PrevWidth + offx;
+				}
+
+				// bottom resize is not available currently, reserve it because it is complex to rethink the logic
+				if (tag.Contains("bottom"))
+				{
 					offy = (m_PrevHeight + offy) >= MinHeight 
 						? ((m_PrevHeight + offy) > MaxHeight ? (MaxHeight - m_PrevHeight) : offy)
 						: (MinHeight - m_PrevHeight);

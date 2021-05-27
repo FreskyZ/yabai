@@ -8,13 +8,17 @@
         Title="danmuji"
         WindowStyle="None" ResizeMode="NoResize" 
         Background="Transparent" AllowsTransparency="True" Topmost="True"
-        Height="600" Width="320" MinWidth="320" Icon="{Binding Icon}">
+        Height="800" Width="300" MinWidth="300" Icon="{Binding Icon}">
     <Window.Resources>
         <local:MainWindowState x:Key="state" />
 
         <SolidColorBrush x:Key="BackgroundColor">#AFFFFFFF</SolidColorBrush>
-        <SolidColorBrush x:Key="OptionBackground">#CFFFFFFF</SolidColorBrush>
+        <SolidColorBrush x:Key="OptionBackground">#C0FFFFFF</SolidColorBrush>
         <SolidColorBrush x:Key="BorderColor">#7F7F7F7F</SolidColorBrush>
+
+        <SolidColorBrush x:Key="ChatMessageNormalBackground">#C0FFFFFF</SolidColorBrush>
+        <SolidColorBrush x:Key="ChatMessageMemberBackground">#C0E7F2F9</SolidColorBrush>
+        <SolidColorBrush x:Key="ChatMessagePreviledgeBackground">#C0EFAFAF</SolidColorBrush>
         
         <Style x:Key="ResizeHandle" TargetType="Rectangle">
             <Setter Property="Fill" Value="#00FFFFFF"/>
@@ -70,9 +74,10 @@
             <Setter Property="Width" Value="32" />
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Foreground" Value="#5F5F5F"/>
+            <Setter Property="Background" Value="Transparent"/>
             <Setter Property="LayoutTransform">
                 <Setter.Value>
-                    <RotateTransform/>
+                    <RotateTransform Angle="180"/>
                 </Setter.Value>
             </Setter>
             <Setter Property="Template">
@@ -90,7 +95,7 @@
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter Property="Foreground" Value="White"/>
-                                <Setter Property="Background" Value="#3FAFCF"/>
+                                <Setter Property="Background" Value="#8F6F6F6F"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -100,7 +105,7 @@
                 <DataTrigger Binding="{Binding DataContext.OptionsVisible, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
                     <Setter Property="LayoutTransform">
                         <Setter.Value>
-                            <RotateTransform Angle="180"/>
+                            <RotateTransform Angle="0"/>
                         </Setter.Value>
                     </Setter>
                 </DataTrigger>
@@ -111,6 +116,7 @@
             <Setter Property="Width" Value="32"/>
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="Foreground" Value="#5F5F5F" />
+            <Setter Property="Background" Value="Transparent"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
@@ -181,6 +187,12 @@
                     <Setter Property="Visibility" Value="Collapsed"/>
                 </DataTrigger>
             </Style.Triggers>
+        </Style>
+
+        <Style x:Key="ChatMessage" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="{Binding DataContext.DisplayFontSize, RelativeSource={RelativeSource AncestorType=Window}}"/>
+            <Setter Property="Padding" Value="4 2"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
         </Style>
         
     </Window.Resources>
@@ -253,38 +265,8 @@
                 </Grid>
             </Border>
 
-            <StackPanel x:Name="stackpanelChat" Grid.Row="2" Grid.RowSpan="7" Grid.Column="1">
-                <!--<Border BorderThickness="1 0 1 1" BorderBrush="#7F7F7F7F">
-                    <TextBlock x:Name="textblockchat0" Background="#C0FFFFFF" FontSize="{Binding DisplayFontSize}" Padding="4 2" TextWrapping="Wrap">[财布 21] 少年Pi: 血口喷人</TextBlock>
-                </Border>
-                <Border BorderThickness="1 0 1 1" BorderBrush="#7F7F7F7F">
-                    <TextBlock x:Name="textblockchat1" Background="#C0E7F2F9" FontSize="{Binding DisplayFontSize}" Padding="4 2" TextWrapping="Wrap">[财布 21] 少年Pi: 血口喷人</TextBlock>
-                </Border>
-                <Border BorderThickness="1 0 1 1" BorderBrush="#7F7F7F7F">
-                    <TextBlock x:Name="textblockchat2" Background="#C0EFAFAF" FontSize="{Binding DisplayFontSize}" Padding="4 2" TextWrapping="Wrap">
-                    [财布 21] 少年Pi: 血口喷人血口喷人血口喷人血口喷人血口喷人血口喷人血口喷人血口喷人血口喷人血口喷人</TextBlock>
-                </Border>
-                <Border BorderThickness="1 0 1 1" BorderBrush="#7F7F7F7F">
-                    <TextBlock x:Name="textblockchat3" Background="#C0FFFFFF" FontSize="{Binding DisplayFontSize}" Padding="4 2" TextWrapping="Wrap">[财布 21] 少年Pi: 血口喷人</TextBlock>
-                </Border>
-                <Border BorderThickness="1 0 1 1" BorderBrush="#7F7F7F7F">
-                    <TextBlock x:Name="textblockchat4" Background="#C0FFFFFF" FontSize="{Binding DisplayFontSize}" Padding="4 2" TextWrapping="Wrap">[财布 21] 少年Pi: 血口喷人</TextBlock>
-                </Border>
-                <Border BorderThickness="1 0 1 1" BorderBrush="#7F7F7F7F">
-                    <TextBlock x:Name="textblockchat5" Background="#C0E7F2F9" FontSize="{Binding DisplayFontSize}" Padding="4 2" TextWrapping="Wrap">[财布 21] 少年Pi: 血口喷人</TextBlock>
-                </Border>
-                <Border BorderThickness="1 0 1 1" BorderBrush="#7F7F7F7F">
-                    <TextBlock x:Name="textblockchat6" Background="#C0EFAFAF" FontSize="{Binding DisplayFontSize}" Padding="4 2" TextWrapping="Wrap">
-                    [财布 21] 少年Pi: 血口喷人血口喷人血口喷人血口喷人血口喷人血口喷人血口喷人血口喷人血口喷人血口喷人</TextBlock>
-                </Border>
-                <Border BorderThickness="1 0 1 1" BorderBrush="#7F7F7F7F">
-                    <TextBlock x:Name="textblockchat7" Background="#C0FFFFFF" FontSize="{Binding DisplayFontSize}" Padding="4 2" TextWrapping="Wrap">[财布 21] 少年Pi: 血口喷人</TextBlock>
-                </Border>
-                <Border BorderThickness="1 0 1 1" BorderBrush="#7F7F7F7F">
-                    <TextBlock x:Name="textblockchat8" Background="#C0EFAFAF" FontSize="{Binding DisplayFontSize}" Padding="4 2" TextWrapping="Wrap">
-                    [财布 21] 少年Pi: 血口喷人血口喷人血口喷人血口喷人血口喷人血口喷人血口喷人血口喷人血口喷人血口喷人</TextBlock>
-                </Border>-->
-            </StackPanel>
+            <!-- chat message panel -->
+            <StackPanel x:Name="stackpanelChat" Grid.Row="2" Grid.RowSpan="7" Grid.Column="1" />
 
             <!-- row 2: room id, refresh -->
             <Border Grid.Column="1" Grid.Row="2" BorderThickness="1 0 1 1" Style="{StaticResource OptionContainer}">
@@ -299,14 +281,14 @@
                 <StackPanel Orientation="Horizontal" Background="{StaticResource OptionBackground}">
                     <TextBlock VerticalAlignment="Center" Margin="8 2 0 0">Lines</TextBlock>
                     <ComboBox x:Name="comboboxLines" Height="20" Width="80" Margin="8 3 0 0" ItemsSource="{Binding URLNames}" />
-                    <Button x:Name="buttonCopyLine" Height="20" Margin="12 3 0 0" Padding="8 2 8 0" FontSize="10">COPY</Button>
-                    <Button x:Name="buttonOpenLine" Height="20" Margin="12 3 0 0" Padding="8 2 8 0" FontSize="10">OPEN</Button>
+                    <Button x:Name="buttonCopyLine" Height="20" Margin="12 3 0 0" Padding="8 2 8 0" FontSize="10" IsEnabled="{Binding URLButtonEnabled}">COPY</Button>
+                    <Button x:Name="buttonOpenLine" Height="20" Margin="12 3 0 0" Padding="8 2 8 0" FontSize="10" IsEnabled="{Binding URLButtonEnabled}">OPEN</Button>
                 </StackPanel>
             </Border>
             <Border Grid.Column="1" Grid.Row="4" BorderThickness="1 0 1 1" Style="{StaticResource OptionContainer}">
                 <StackPanel Orientation="Horizontal" Background="{StaticResource OptionBackground}">
                     <TextBlock  Margin="8 4 0 0">Media Player</TextBlock>
-                    <TextBox VerticalAlignment="Top" Width="208" Margin="8 4 0 0" FontSize="10" Text="{Binding URLOpener, Mode=TwoWay}"/>
+                    <TextBox VerticalAlignment="Top" Width="180" Margin="8 4 0 0" FontSize="10" Text="{Binding URLOpener, Mode=TwoWay}"/>
                 </StackPanel>
             </Border>
 

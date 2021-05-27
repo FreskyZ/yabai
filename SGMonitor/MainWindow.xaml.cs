@@ -46,7 +46,8 @@ namespace SGMonitor
 		public string RoomId { get => p_RoomId; set { p_RoomId = value; Notify(); } }
 
 		private string[] p_URLs = Array.Empty<string>();
-		public string[] URLs { get => p_URLs; set { p_URLs = value; Notify(nameof(URLNames)); } }
+		public string[] URLs { get => p_URLs; set { p_URLs = value; Notify(nameof(URLButtonEnabled)); Notify(nameof(URLNames)); } }
+		public bool URLButtonEnabled { get => p_URLs.Length > 0; }
 		public string[] URLNames { get => p_URLs.Select((_, index) => $"Line {index + 1}").ToArray(); }
 
 		private string p_URLOpener = @"C:\Program Files\DAUM\PotPlayer\PotPlayerMini64.exe";
@@ -75,39 +76,28 @@ namespace SGMonitor
         public MainWindow()
         {
             InitializeComponent();
+			InitializeChatPanel();
 			state = DataContext as MainWindowState;
 
 			logger = new Logger();
 			chat = new LiveChatClient(logger);
 			chat.Chat += handleChat;
-
-			textblockchats = new TextBlock[] 
-			{
-				//textblockchat0,
-				//textblockchat1,
-				//textblockchat2,
-				//textblockchat3,
-				//textblockchat4,
-				//textblockchat5,
-				//textblockchat6,
-				//textblockchat7,
-				//textblockchat8,
-				//textblockchat9,
-			};
-			last_textblock_index = 0;
+			chat.StateChanged += (s, e) => state.ChatState = e;
 
 			var timer = new DispatcherTimer { Interval = new TimeSpan(0, 0, 1) };
             timer.Tick += Timer_Tick;
 			timer.Start();
 
 			// small event handlers
-			buttonClose.Click += (s, e) => Close();
 			stackpanelTitle.MouseDown += (s, e) => DragMove();
 			textboxRoomId.PreviewTextInput += (s, e) => e.Handled = !s_number.IsMatch(e.Text);
 			buttonOptions.Click += (s, e) => state.OptionsVisible = !state.OptionsVisible;
 			buttonCopyLine.Click += (s, e) => Clipboard.SetData(DataFormats.Text, state.URLs[comboboxLines.SelectedIndex]);
 			buttonOpenLine.Click += (s, e) => System.Diagnostics.Process.Start(state.URLOpener, $"\"{state.URLs[comboboxLines.SelectedIndex]}\"");
-			Application.Current.Exit += (s, e) => logger.Flush();
+
+			// close
+			buttonClose.Click += async (s, e) => { logger.Flush(); await chat.Stop(); Close(); };
+			Application.Current.Exit += async (s, e) => { logger.Flush(); await chat.Stop(); };
 		}
 
         private void Timer_Tick(object sender, EventArgs e)
@@ -118,7 +108,6 @@ namespace SGMonitor
 			}
 		}
 
-		private LiveInfo info;
 		private static BitmapImage ConvertToImage(byte[] bytes)
 		{
 			var image = new BitmapImage();
@@ -137,8 +126,9 @@ namespace SGMonitor
         {
             try
             {
+				await chat.Stop();
 				var room_id = int.Parse(state.RoomId);
-				info = await LiveInfo.Load(room_id, logger);
+				var info = await LiveInfo.Load(room_id, logger);
 
 				if (info.LiverAvatar != null)
 				{
@@ -159,7 +149,7 @@ namespace SGMonitor
 					Clipboard.SetData(DataFormats.Text, info.StreamURLs[0]);
 				}
 
-				// await chat.Start(room_id);
+				await chat.Start(room_id);
 				state.ChatState = "CHAT";
 			}
             catch
@@ -168,13 +158,47 @@ namespace SGMonitor
             }
 		}
 
-		private LiveChatClient chat;
 		private TextBlock[] textblockchats;
-		private int last_textblock_index;
-		private void handleChat(object sender, LiveChat message)
+		private Style textblockchatStyle;
+		private Dictionary<UserType, SolidColorBrush> textblockchatBackgroundColors;
+		private int textblockchatLastIndex;
+		private void InitializeChatPanel()
         {
-			textblockchats[last_textblock_index].Text = message.Content;
-			last_textblock_index = last_textblock_index == 9 ? 0 : last_textblock_index + 1;
+			textblockchatStyle = Resources["ChatMessage"] as Style;
+			textblockchatBackgroundColors = new Dictionary<UserType, SolidColorBrush>
+			{
+				[UserType.Normal] = Resources["ChatMessageNormalBackground"] as SolidColorBrush,
+				[UserType.Member] = Resources["ChatMessageMemberBackground"] as SolidColorBrush,
+				[UserType.Previledge] = Resources["ChatMessagePreviledgeBackground"] as SolidColorBrush,
+			};
+
+			textblockchats = Enumerable.Range(0, 20).Select(_ =>
+			{
+				var textblock = new TextBlock
+				{
+					Style = textblockchatStyle,
+					Visibility = Visibility.Hidden,
+				};
+				textblock.MouseDown += (s, e) => DragMove();
+				stackpanelChat.Children.Add(textblock);
+				return textblock;
+			}).ToArray();
+			textblockchatLastIndex = 0;
+        }
+
+		private readonly LiveChatClient chat;
+		private void handleChat(object sender, LiveChat message)
+		{
+			stackpanelChat.Children.Remove(textblockchats[textblockchatLastIndex]);
+
+			textblockchats[textblockchatLastIndex].Text = message.Price is int price
+				? $"{message.Time:hh\\:mm\\:ss} [!!\uFFE5{price}!!] [{message.MedalInfo}] {message.UserName}: {message.Content}"
+				: $"{message.Time:hh\\:mm\\:ss} [{message.MedalInfo}] {message.UserName}: {message.Content}";
+			textblockchats[textblockchatLastIndex].Background = textblockchatBackgroundColors[message.UserType];
+			textblockchats[textblockchatLastIndex].Visibility = Visibility.Visible;
+
+			stackpanelChat.Children.Add(textblockchats[textblockchatLastIndex]);
+			textblockchatLastIndex = textblockchatLastIndex == 19 ? 0 : textblockchatLastIndex + 1;
         }
 
 		#region Border

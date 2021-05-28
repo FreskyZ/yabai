@@ -5,10 +5,10 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:SGMonitor"
         mc:Ignorable="d"
-        Title="danmuji"
+        Title="{Binding WindowTitle}"
         WindowStyle="None" ResizeMode="NoResize" 
         Background="Transparent" AllowsTransparency="True" Topmost="True"
-        Height="800" Width="300" MinWidth="300" Icon="{Binding Icon}">
+        Height="800" Width="320" MinWidth="300" Icon="{Binding Icon}">
     <Window.Resources>
         <local:MainWindowState x:Key="state" />
 
@@ -16,10 +16,6 @@
         <SolidColorBrush x:Key="OptionBackground">#C0FFFFFF</SolidColorBrush>
         <SolidColorBrush x:Key="BorderColor">#7F7F7F7F</SolidColorBrush>
 
-        <SolidColorBrush x:Key="ChatMessageNormalBackground">#C0FFFFFF</SolidColorBrush>
-        <SolidColorBrush x:Key="ChatMessageMemberBackground">#C0E7F2F9</SolidColorBrush>
-        <SolidColorBrush x:Key="ChatMessagePreviledgeBackground">#C0EFAFAF</SolidColorBrush>
-        
         <Style x:Key="ResizeHandle" TargetType="Rectangle">
             <Setter Property="Fill" Value="#00FFFFFF"/>
             <EventSetter Event="MouseDown" Handler="handleResizeHandleMouseDown"/>
@@ -46,7 +42,6 @@
                 </DataTrigger>
             </Style.Triggers>
         </Style>
-        
         <Style x:Key="ChatStateIcon" TargetType="Path">
             <Setter Property="Width" Value="32"/>
             <Setter Property="Height" Value="32"/>
@@ -97,6 +92,10 @@
                                 <Setter Property="Foreground" Value="White"/>
                                 <Setter Property="Background" Value="#8F6F6F6F"/>
                             </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter Property="Foreground" Value="White"/>
+                                <Setter Property="Background" Value="#8F6F6F6F"/>
+                            </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
@@ -111,7 +110,6 @@
                 </DataTrigger>
             </Style.Triggers>
         </Style>
-        
         <Style x:Key="CloseButton" TargetType="Button">
             <Setter Property="Width" Value="32"/>
             <Setter Property="BorderThickness" Value="0" />
@@ -134,24 +132,25 @@
                                 <Setter Property="Foreground" Value="White"/>
                                 <Setter Property="Background" Value="#FF3F3F"/>
                             </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter Property="Foreground" Value="White"/>
+                                <Setter Property="Background" Value="#FF3F3F"/>
+                            </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
         </Style>
-
         <Style x:Key="RefreshButton" TargetType="Button">
-            <Setter Property="Margin" Value="8 0 0 0" />
-            <Setter Property="Width" Value="24"/>
-            <Setter Property="Height" Value="24" />
+            <Setter Property="Width" Value="32"/>
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="Foreground" Value="#6F6F6F" />
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}" CornerRadius="4">
-                            <Path Margin="0 2 2 0" Width="1200" Height="1200" 
+                        <Border Background="{TemplateBinding Background}">
+                            <Path Margin="0 3 2 0" Width="1200" Height="1200" 
                                   Stroke="{TemplateBinding Foreground}" 
                                   StrokeThickness="80"
                                   Data="M 909.1 209.3 l -56.4 44.1 C 775.8 155.1 656.2 92 521.9 92 C 290 92 102.3 279.5 102 511.5 C 101.7 743.7 289.8 932 521.9 932 
@@ -167,6 +166,10 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="White"/>
+                                <Setter Property="Background" Value="#8F6F6F6F"/>
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
                                 <Setter Property="Foreground" Value="White"/>
                                 <Setter Property="Background" Value="#8F6F6F6F"/>
                             </Trigger>
@@ -199,109 +202,119 @@
     <Window.DataContext>
         <Binding Source="{StaticResource state}"/>
     </Window.DataContext>
-    <Border>
-        <Border.Effect>
-            <DropShadowEffect BlurRadius="12" Color="#3F3F3F" Opacity="0.45" ShadowDepth="1"/>
-        </Border.Effect>
-        <Grid>
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="6"/>
-                <ColumnDefinition/>
-                <ColumnDefinition Width="6"/>
-            </Grid.ColumnDefinitions>
-            <Grid.RowDefinitions>
-                <RowDefinition Height="6"/>
-                <RowDefinition Height="30"/>
-                <RowDefinition Height="28"/>
-                <RowDefinition Height="28"/>
-                <RowDefinition Height="24"/>
-                <RowDefinition Height="28"/>
-                <RowDefinition />
-            </Grid.RowDefinitions>
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="6"/> <!-- left shadow and left resize handle -->
+            <ColumnDefinition/>
+            <ColumnDefinition Width="6"/> <!-- right shadow and right resize handle -->
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="6"/> <!-- top shadow -->
+            <RowDefinition Height="32"/> <!-- chat panel is displayed after row 1 with additional margin -->
+            <RowDefinition Height="106"/> <!-- header row rest part -->
+            <RowDefinition />
+        </Grid.RowDefinitions>
         
-            <Rectangle Tag="left" Grid.RowSpan="7" Cursor="SizeWE" Fill="#01FFFFFF" Style="{StaticResource ResizeHandle}"/>
-            <Rectangle Tag="right" Grid.RowSpan="7" Grid.Column="2" Cursor="SizeWE" Fill="#01FFFFFF" Style="{StaticResource ResizeHandle}"/>
+        <Rectangle Tag="left" Grid.RowSpan="7" Cursor="SizeWE" Fill="#01FFFFFF" Style="{StaticResource ResizeHandle}"/>
+        <Rectangle Tag="right" Grid.RowSpan="7" Grid.Column="2" Cursor="SizeWE" Fill="#01FFFFFF" Style="{StaticResource ResizeHandle}"/>
+
+        <!-- chat message panel -->
+        <StackPanel x:Name="stackpanelChat" Grid.Row="2" Grid.RowSpan="2" Grid.Column="1">
+            <TextBox Background="Transparent" BorderThickness="0" IsReadOnly="True" HorizontalAlignment="Center" Text="{Binding ChatStatistics, Mode=OneWay}"/>
+        </StackPanel>
         
-            <!-- row 1: avatar, title, state, toggle options, close -->
-            <Border Grid.Row="1" Grid.Column="1" BorderThickness="1" BorderBrush="{StaticResource BorderColor}">
-                <Grid Background="{StaticResource BackgroundColor}">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition/>
-                        <ColumnDefinition Width="96" />
-                    </Grid.ColumnDefinitions>
+        <!-- header rows container -->
+        <Border Grid.Column="1" Grid.Row="1" Grid.RowSpan="2">
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="12" Color="#3F3F3F" Opacity="0.45" ShadowDepth="1"/>
+            </Border.Effect>
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="30"/>
+                    <RowDefinition Height="28"/>
+                    <RowDefinition Height="28"/>
+                    <RowDefinition Height="24"/>
+                    <RowDefinition Height="28"/>
+                </Grid.RowDefinitions>
 
-                    <StackPanel x:Name="stackpanelTitle" Background="#01FFFFFF" Orientation="Horizontal" Margin="8 0 0 0">
-                        <Image Margin="0 4 0 2" RenderOptions.BitmapScalingMode="HighQuality" Source="{Binding Icon}">
-                            <Image.Clip>
-                                <RectangleGeometry RadiusX="12" RadiusY="12" Rect="0,0,24,24"></RectangleGeometry>
-                            </Image.Clip>
-                        </Image>
-                        <TextBlock Margin="8 0 0 0" Text="{Binding LiveTitle}" ToolTip="{Binding LiveTitle}"
-                                   TextTrimming="CharacterEllipsis" VerticalAlignment="Center" MaxWidth="100" />
-                        <Grid Margin="8 0 0 0">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="16"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="14"/>
-                                <RowDefinition Height="14"/>
-                            </Grid.RowDefinitions>
-                            <Path Style="{StaticResource LiveStateIcon}"/>
-                            <TextBlock Grid.Column="1" FontSize="10" VerticalAlignment="Bottom" Text="{Binding LiveStateDescription}"/>
-                            <Rectangle x:Name="rectangleLiveStateTooltipProvider" Grid.ColumnSpan="2" Fill="#00FFFFFF" />
-                            <Path Grid.Row="1" Style="{StaticResource ChatStateIcon}" />
-                            <TextBlock Grid.Row="1" Grid.Column="1" FontSize="10" VerticalAlignment="Bottom" Text="{Binding ChatState}"/>
-                            <Rectangle Grid.Row="1" Grid.ColumnSpan="2" Fill="#00FFFFFF" ToolTip="{Binding ChatStateDescription}"/>
-                        </Grid>
+                <!-- row 1: avatar, title, state, toggle options, close -->
+                <Border BorderThickness="1" BorderBrush="{StaticResource BorderColor}">
+                    <Grid Background="{StaticResource BackgroundColor}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="{Binding LiveChatIconWidth}"/>
+                            <ColumnDefinition/>
+                            <ColumnDefinition Width="96" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Background="#01FFFFFF" Orientation="Horizontal" Margin="6 0 0 0" MouseDown="handleDragMove">
+                            <Image Margin="0 2" RenderOptions.BitmapScalingMode="HighQuality" Source="{Binding Icon}">
+                                <Image.Clip>
+                                    <RectangleGeometry RadiusX="12" RadiusY="12" Rect="0,0,24,24"></RectangleGeometry>
+                                </Image.Clip>
+                            </Image>
+                            <Grid Margin="4 0 0 0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="16"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="14"/>
+                                    <RowDefinition Height="14"/>
+                                </Grid.RowDefinitions>
+                                <Path Style="{StaticResource LiveStateIcon}"/>
+                                <TextBlock Grid.Column="1" FontSize="10" VerticalAlignment="Bottom" Text="{Binding LiveStateDescription}"/>
+                                <Rectangle x:Name="rectangleLiveStateTooltipProvider" Grid.ColumnSpan="2" Fill="#00FFFFFF" ToolTip="" />
+                                <Path Grid.Row="1" Style="{StaticResource ChatStateIcon}" />
+                                <TextBlock Grid.Row="1" Grid.Column="1" FontSize="10" VerticalAlignment="Bottom" Text="{Binding ChatState}"/>
+                                <Rectangle Grid.Row="1" Grid.ColumnSpan="2" Fill="#00FFFFFF" ToolTip="{Binding ChatStateDescription}"/>
+                            </Grid>
+                        </StackPanel>
+                        <TextBlock Margin="0 0 12 0" Grid.Column="1" TextTrimming="CharacterEllipsis" Height="28" Padding="0 7"
+                               Background="#00FFFFFF" MouseDown="handleDragMove" Text="{Binding LiveTitle}" ToolTip="{Binding LiveTitle}"/>
+
+                        <StackPanel Orientation="Horizontal" FlowDirection="RightToLeft" Grid.Column="2">
+                            <Button x:Name="buttonClose" Style="{StaticResource CloseButton}" />
+                            <Button x:Name="buttonOptions" Style="{StaticResource OptionsButton}"/>
+                            <Button Click="handleRefresh" Style="{StaticResource RefreshButton}"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- row 2: room id, refresh -->
+                <Border Grid.Row="1" BorderThickness="1 0 1 1" Style="{StaticResource OptionContainer}">
+                    <StackPanel Orientation="Horizontal" Background="{StaticResource OptionBackground}">
+                        <TextBlock VerticalAlignment="Center" Margin="8 0 0 0">Room Id</TextBlock>
+                        <TextBox x:Name="textboxRoomId" Width="72" 
+                                 Margin="8 0 0 0" MaxLength="10" VerticalAlignment="Center" 
+                                 KeyDown="handleRoomIdKeydown" Text="{Binding Path=RoomId, Mode=TwoWay}"/>
                     </StackPanel>
-                    
-                    <!-- header row buttons -->
-                    <StackPanel Orientation="Horizontal" FlowDirection="RightToLeft" Grid.Column="1">
-                        <Button x:Name="buttonClose" Style="{StaticResource CloseButton}" />
-                        <Button x:Name="buttonOptions" Style="{StaticResource OptionsButton}"/>
-                        <Button Click="handleRefresh" Style="{StaticResource RefreshButton}"/>
+                </Border>
+
+                <!-- row 3: line list, row 4: line opener -->
+                <Border Grid.Row="2" BorderThickness="1 0 1 0" Style="{StaticResource OptionContainer}">
+                    <StackPanel Orientation="Horizontal" Background="{StaticResource OptionBackground}">
+                        <TextBlock VerticalAlignment="Center" Margin="8 2 0 0">Lines</TextBlock>
+                        <ComboBox x:Name="comboboxLines" Height="20" Width="80" Margin="8 3 0 0" ItemsSource="{Binding URLNames}" />
+                        <Button x:Name="buttonCopyLine" Height="20" Margin="12 3 0 0" Padding="8 2 8 0" FontSize="10" IsEnabled="{Binding URLButtonEnabled}">COPY</Button>
+                        <Button x:Name="buttonOpenLine" Height="20" Margin="12 3 0 0" Padding="8 2 8 0" FontSize="10" IsEnabled="{Binding URLButtonEnabled}">OPEN</Button>
                     </StackPanel>
-                </Grid>
-            </Border>
+                </Border>
+                <Border Grid.Row="3" BorderThickness="1 0 1 1" Style="{StaticResource OptionContainer}">
+                    <StackPanel Orientation="Horizontal" Background="{StaticResource OptionBackground}">
+                        <TextBlock  Margin="8 4 0 0">Media Player</TextBlock>
+                        <TextBox VerticalAlignment="Top" Width="180" Margin="8 4 0 0" FontSize="10" Text="{Binding URLOpener, Mode=TwoWay}"/>
+                    </StackPanel>
+                </Border>
 
-            <!-- chat message panel -->
-            <StackPanel x:Name="stackpanelChat" Grid.Row="2" Grid.RowSpan="7" Grid.Column="1" />
-
-            <!-- row 2: room id, refresh -->
-            <Border Grid.Column="1" Grid.Row="2" BorderThickness="1 0 1 1" Style="{StaticResource OptionContainer}">
-                <StackPanel Orientation="Horizontal" Background="{StaticResource OptionBackground}">
-                    <TextBlock VerticalAlignment="Center" Margin="8 0 0 0">Room Id</TextBlock>
-                    <TextBox x:Name="textboxRoomId" Width="72" Margin="8 0 0 0" MaxLength="10" VerticalAlignment="Center" Text="{Binding Path=RoomId, Mode=TwoWay}"/>
-                </StackPanel>
-            </Border>
-
-            <!-- row 3: line list, row 4: line opener -->
-            <Border Grid.Column="1" Grid.Row="3" BorderThickness="1 0 1 0" Style="{StaticResource OptionContainer}">
-                <StackPanel Orientation="Horizontal" Background="{StaticResource OptionBackground}">
-                    <TextBlock VerticalAlignment="Center" Margin="8 2 0 0">Lines</TextBlock>
-                    <ComboBox x:Name="comboboxLines" Height="20" Width="80" Margin="8 3 0 0" ItemsSource="{Binding URLNames}" />
-                    <Button x:Name="buttonCopyLine" Height="20" Margin="12 3 0 0" Padding="8 2 8 0" FontSize="10" IsEnabled="{Binding URLButtonEnabled}">COPY</Button>
-                    <Button x:Name="buttonOpenLine" Height="20" Margin="12 3 0 0" Padding="8 2 8 0" FontSize="10" IsEnabled="{Binding URLButtonEnabled}">OPEN</Button>
-                </StackPanel>
-            </Border>
-            <Border Grid.Column="1" Grid.Row="4" BorderThickness="1 0 1 1" Style="{StaticResource OptionContainer}">
-                <StackPanel Orientation="Horizontal" Background="{StaticResource OptionBackground}">
-                    <TextBlock  Margin="8 4 0 0">Media Player</TextBlock>
-                    <TextBox VerticalAlignment="Top" Width="180" Margin="8 4 0 0" FontSize="10" Text="{Binding URLOpener, Mode=TwoWay}"/>
-                </StackPanel>
-            </Border>
-
-            <!-- row 5: display item count -->
-            <Border Grid.Column="1" Grid.Row="5" BorderThickness="1 0 1 1" Style="{StaticResource OptionContainer}">
-                <StackPanel Orientation="Horizontal" Background="{StaticResource OptionBackground}">
-                    <TextBlock VerticalAlignment="Center" Margin="8 0 0 0">Display</TextBlock>
-                    <TextBox VerticalAlignment="Center" Margin="8 0 0 0" MinWidth="20" Text="{Binding DisplayCount}"/>
-                    <TextBlock VerticalAlignment="Center" Margin="8 0 0 0">Items</TextBlock>
-                    <TextBlock VerticalAlignment="Center" Margin="8 0 0 0">Font Size</TextBlock>
-                    <TextBox VerticalAlignment="Center" Margin="8 0 0 0" MinWidth="20" Text="{Binding ConfigFontSize, Mode=TwoWay}"/>
-                </StackPanel>
-            </Border>
-        </Grid>
-    </Border>
+                <!-- row 5: display item count -->
+                <Border Grid.Row="4" BorderThickness="1 0 1 1" Style="{StaticResource OptionContainer}">
+                    <StackPanel Orientation="Horizontal" Background="{StaticResource OptionBackground}">
+                        <TextBlock VerticalAlignment="Center" Margin="8 0 0 0">Display Items</TextBlock>
+                        <TextBox VerticalAlignment="Center" Margin="8 0 0 0" MinWidth="20" Text="{Binding DisplayCount}"/>
+                        <TextBlock VerticalAlignment="Center" Margin="8 0 0 0">Items</TextBlock>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Border>
+    </Grid>
 </Window>

@@ -54,11 +54,11 @@ namespace SGMonitor
                 var document = await JsonDocument.ParseAsync(new MemoryStream(Encoding.UTF8.GetBytes(content)));
                 var data = document.RootElement.GetProperty("data");
 
-                living = data.GetProperty("room_info").GetProperty("live_status").GetInt32() == 1;
-                start_time = DateTime.UnixEpoch.AddTicks(data.GetProperty("room_info").GetProperty("live_start_time").GetInt64() * TimeSpan.TicksPerSecond);
-                title = data.GetProperty("room_info").GetProperty("title").GetString();
-                name = data.GetProperty("anchor_info").GetProperty("base_info").GetProperty("uname").GetString();
-                avatar_url = data.GetProperty("anchor_info").GetProperty("base_info").GetProperty("face").GetString();
+                living = data.prop("room_info").i32("live_status") == 1;
+                start_time = data.prop("room_info").time("live_start_time");
+                title = data.prop("room_info").str("title");
+                name = data.prop("anchor_info").prop("base_info").str("uname");
+                avatar_url = data.prop("anchor_info").prop("base_info").str("face");
             }
             catch (Exception e) when (e is JsonException 
                 || e is InvalidOperationException || e is KeyNotFoundException || e is IndexOutOfRangeException)
@@ -117,10 +117,8 @@ namespace SGMonitor
             try
             {
                 var document = await JsonDocument.ParseAsync(new MemoryStream(Encoding.UTF8.GetBytes(content)));
-                var data = document.RootElement.GetProperty("data");
-
-                return data.GetProperty("durl")
-                    .EnumerateArray().Select(durl => durl.GetProperty("url").GetString()).ToArray();
+                return document.RootElement.prop("data").prop("durl")
+                    .EnumerateArray().Select(durl => durl.str("url")).ToArray();
             }
             catch (Exception e) when (e is JsonException
                 || e is InvalidOperationException || e is KeyNotFoundException || e is IndexOutOfRangeException)

@@ -12,20 +12,14 @@ using System.Threading.Tasks;
 
 namespace SGMonitor
 {
-    internal enum UserType
-    {
-        Normal,
-        Member,
-        Previledge,
-    }
-
-    internal struct LiveChat
+    internal struct LiveChatMessage
     {
         public DateTime Time { get; set; }
         public int? Price { get; init; } // not null for super chat
-        public string MedalInfo { get; init; } // 财布 21
+        public bool IsMember { get; init; } // is member in current room
+        public string MemberInfo { get; init; } // selected displayed member and level
+        public bool HasMemberInfo { get => MemberInfo != null; } // ui visibility
         public string UserName { get; init; }
-        public UserType UserType { get; init; }
         public string Content { get; init; }
     }
 
@@ -121,60 +115,45 @@ namespace SGMonitor
             }
         }
 
-        public EventHandler<LiveChat> Chat;
+        public EventHandler<LiveChatMessage> MessageReceived;
         private void ReceiveMessage(JsonElement message)
         {
             try
             {
-                var command = message.GetProperty("cmd").GetString();
+                var command = message.str("cmd");
                 if (command == "DANMU_MSG")
                 {
-                    var info = message.GetProperty("info").EnumerateArray().ToArray();
-                    var info2 = info[2].EnumerateArray().ToArray();
-                    var info3 = info[3].EnumerateArray().ToArray();
-
-                    var time = DateTime.UnixEpoch.AddTicks(info[9].GetProperty("ts").GetInt64() * TimeSpan.TicksPerSecond);
-                    var user_type = info2[2].GetInt32() != 0 ? UserType.Previledge : string.IsNullOrWhiteSpace(info2[7].GetString()) ? UserType.Member : UserType.Normal;
-                    var medal = info3.Length > 0 ? $"{info3[1]}{info3[0]}" : null;
-                    var user_name = info2[1].GetString();
-                    var content = info[1].GetString();
-
-                    Chat?.Invoke(this, new LiveChat
+                    var info = message.prop("info");
+                    MessageReceived?.Invoke(this, new LiveChatMessage
                     {
-                        Time = time,
+                        Time = info[9].time("ts"),
                         Price = null,
-                        MedalInfo = medal,
-                        UserName = user_name,
-                        UserType = user_type,
-                        Content = content,
+                        IsMember = info[2][2].i32() != 0 || !string.IsNullOrWhiteSpace(info[2][7].str()),
+                        MemberInfo = info[3].len() > 0 ? $"{info[3][1].str()}{info[3][0].i32()}" : null,
+                        UserName = info[2][1].str(),
+                        Content = info[1].str(),
                     });
                 }
                 else if (command == "SUPER_CHAT_MESSAGE")
                 {
-                    var data = message.GetProperty("data");
-                    var time = DateTime.UnixEpoch.AddTicks(data.GetProperty("ts").GetInt64() * TimeSpan.TicksPerSecond);
-                    var price =data.GetProperty("price").GetInt32();
-                    var user_type = data.TryGetProperty("medal_info", out var medal_info)
-                        && medal_info.TryGetProperty("guard_level", out var guard_level)
-                        && guard_level.GetInt32() > 0 ? UserType.Member : UserType.Normal;
-                    var medal = data.TryGetProperty("medal_info", out var medal_info2) ?
-                        $"{medal_info2.GetProperty("medal_name").GetString()}{medal_info2.GetProperty("medal_level").GetString()}" : null;
-                    var user_name = data.GetProperty("user_info").GetProperty("uname").GetString();
-                    var content = data.GetProperty("message").GetString();
-
-                    Chat?.Invoke(this, new LiveChat
+                    var data = message.prop("data");
+                    MessageReceived?.Invoke(this, new LiveChatMessage
                     {
-                        Time = time,
-                        Price = price,
-                        MedalInfo = medal,
-                        UserName = user_name,
-                        UserType = user_type,
-                        Content = content,
+                        Time = data.time("ts"),
+                        Price = data.i32("price"),
+                        IsMember = data.TryGetProperty("medal_info", out var medal_info)
+                            && medal_info.TryGetProperty("guard_level", out var guard_level)
+                            && guard_level.GetInt32() > 0,
+                        MemberInfo = data.TryGetProperty("medal_info", out var medal_info2) ?
+                            $"{medal_info2.str("medal_name")}{medal_info2.str("medal_level")}" : null,
+                        UserName = data.prop("user_info").str("uname"),
+                        Content = data.str("message"),
                     });
                 }
             }
             catch (Exception e)
             {
+                System.Diagnostics.Debug.WriteLine($"{e.Message}{e.StackTrace}{message}");
                 logger.Log($"messasge parse error: {e.Message}: {message}");
             }
         }
@@ -197,7 +176,7 @@ namespace SGMonitor
 
                     receive_stream.Seek(0, SeekOrigin.Begin);
                     var raw_data = receive_stream.ToArray();
-                    logger.Log($"received {raw_data.Length} raw bytes");
+                    // logger.Log($"received {raw_data.Length} raw bytes");
 
                     var raw_payload = raw_data;
                     if (raw_data[7] == 2)
@@ -249,6 +228,8 @@ namespace SGMonitor
         private ClientWebSocket websocket;
         public async Task Start(int room_id)
         {
+            StateChanged?.Invoke(this, "NOT CHAT");
+
             this.room_id = room_id;
             var (token, websocket_urls) = await getChatInfo();
 
@@ -258,7 +239,6 @@ namespace SGMonitor
 
             _ = Task.WhenAll(SendHeartbeat(), ReceiveData()).ConfigureAwait(false);
         }
-
         public async Task Stop()
         {
             if (websocket?.State == WebSocketState.Open)
@@ -275,5 +255,53 @@ namespace SGMonitor
             StateChanged?.Invoke(this, "NOT CHAT");
             websocket = null;
         }
+
+        public void StartDemo()
+        {
+            MessageReceived?.Invoke(this, new LiveChatMessage
+            {
+                Time = DateTime.Now,
+                IsMember = false,
+                MemberInfo = "单腿人11",
+                UserName = "用户名",
+                Content = "弹幕消息11",
+            });
+            MessageReceived?.Invoke(this, new LiveChatMessage
+            {
+                Time = DateTime.Now,
+                IsMember = true,
+                MemberInfo = "单腿人21",
+                UserName = "用户名2",
+                Content = "弹幕消息12HENCHANGHENCHANGHENCHANGHENCHANGHENCHANG",
+            });
+            MessageReceived?.Invoke(this, new LiveChatMessage
+            {
+                Time = DateTime.Now,
+                IsMember = false,
+                MemberInfo = null,
+                UserName = "user name 3",
+                Content = "chat message 13",
+            });
+            MessageReceived?.Invoke(this, new LiveChatMessage
+            {
+                Time = DateTime.Now,
+                IsMember = true,
+                MemberInfo = null,
+                UserName = "ユーザー名 ",
+                Content = "ここすき１６长长长长 长长长长 长长长长长长长长 长长 长长 长长长长长长长长长长",
+            });
+        }
+    }
+
+    internal static class JsonHelper
+    {
+        public static JsonElement prop(this JsonElement self, string propertyName) => self.GetProperty(propertyName);
+        public static int len(this JsonElement self) => self.GetArrayLength();
+        public static int i32(this JsonElement self) => self.GetInt32();
+        public static string str(this JsonElement self) => self.GetString();
+        public static DateTime time(this JsonElement self) => DateTime.UnixEpoch.AddTicks(self.GetInt64() * TimeSpan.TicksPerSecond).ToLocalTime();
+        public static int i32(this JsonElement self, string propertyName) => self.GetProperty(propertyName).GetInt32();
+        public static string str(this JsonElement self, string propertyName) => self.GetProperty(propertyName).GetString();
+        public static DateTime time(this JsonElement self, string propertyName) => DateTime.UnixEpoch.AddTicks(self.GetProperty(propertyName).GetInt64() * TimeSpan.TicksPerSecond).ToLocalTime();
     }
 }

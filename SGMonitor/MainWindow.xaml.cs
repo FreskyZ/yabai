@@ -1,72 +1,14 @@
-﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Globalization;
-using System.IO;
+﻿using System.IO;
 using System.Linq;
-using System.Runtime.CompilerServices;
-using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
 using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
 using System.Windows.Shapes;
-using System.Windows.Threading;
 
 namespace SGMonitor
 {
-	public class MainWindowState : INotifyPropertyChanged
-	{
-		private ImageSource p_Icon = null; 
-		public ImageSource Icon { get => p_Icon; set { p_Icon = value; Notify(); } }
-
-		private string p_LiveTitle = "-"; 
-		public string LiveTitle { get => p_LiveTitle; set { p_LiveTitle = value; Notify(); } }
-
-		private bool p_LiveState = false; 
-		public bool LiveState { set { p_LiveState = value; Notify(nameof(LiveStateDescription)); } } 
-		public string LiveStateDescription { get => p_LiveState ? "LIVE" : "NOT LIVE"; }
-		public DateTime LiveStartTime { get; set; }
-
-		private string p_ChatState = "NOT CHAT";
-		public string ChatState { get => p_ChatState; set { p_ChatState = value; Notify(); Notify(nameof(ChatStateDescription)); } }
-		public string ChatStateDescription { get => p_ChatState == "NOT CHAT" ? "CHAT SERVER NOT CONNECTED" : p_ChatState == "CHAT" ? "CHAT SERVER CONNECTED" : "CHAT SERVER CONNECT ERROR"; }
-
-		private bool p_OptionsVisible = false;
-		public bool OptionsVisible { get => p_OptionsVisible; set { p_OptionsVisible = value; Notify(); } }
-
-		private string p_RoomId = "92613";
-		public string RoomId { get => p_RoomId; set { p_RoomId = value; Notify(); } }
-
-		private string[] p_URLs = Array.Empty<string>();
-		public string[] URLs { get => p_URLs; set { p_URLs = value; Notify(nameof(URLButtonEnabled)); Notify(nameof(URLNames)); } }
-		public bool URLButtonEnabled { get => p_URLs.Length > 0; }
-		public string[] URLNames { get => p_URLs.Select((_, index) => $"Line {index + 1}").ToArray(); }
-
-		private string p_URLOpener = @"C:\Program Files\DAUM\PotPlayer\PotPlayerMini64.exe";
-		public string URLOpener { get => p_URLOpener; set { p_URLOpener = value; Notify(); } }
-
-		private int p_DisplayCount = 20;
-		public int DisplayCount { get => p_DisplayCount; set { p_DisplayCount = value; Notify(); } }
-
-		private double p_DisplayFontSize = 16;
-		public double DisplayFontSize { get => p_DisplayFontSize; }
-		public string ConfigFontSize { get => p_DisplayFontSize.ToString(); set { if (double.TryParse(value, out var v)) { p_DisplayFontSize = v; Notify(); Notify(nameof(DisplayFontSize)); } } }
-
-		public event PropertyChangedEventHandler PropertyChanged;
-		private void Notify([CallerMemberName] string propertyName = "")
-		{
-			PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-		}
-	}
-
     public partial class MainWindow : Window
 	{
 		private static readonly Regex s_number = new(@"^\d+$");
@@ -81,51 +23,25 @@ namespace SGMonitor
 
 			logger = new Logger();
 			chat = new LiveChatClient(logger);
-			chat.Chat += handleChat;
+			chat.MessageReceived += handleChatMessageReceived;
 			chat.StateChanged += (s, e) => state.ChatState = e;
 
-			var timer = new DispatcherTimer { Interval = new TimeSpan(0, 0, 1) };
-            timer.Tick += Timer_Tick;
-			timer.Start();
-
 			// small event handlers
-			stackpanelTitle.MouseDown += (s, e) => DragMove();
 			textboxRoomId.PreviewTextInput += (s, e) => e.Handled = !s_number.IsMatch(e.Text);
 			buttonOptions.Click += (s, e) => state.OptionsVisible = !state.OptionsVisible;
 			buttonCopyLine.Click += (s, e) => Clipboard.SetData(DataFormats.Text, state.URLs[comboboxLines.SelectedIndex]);
 			buttonOpenLine.Click += (s, e) => System.Diagnostics.Process.Start(state.URLOpener, $"\"{state.URLs[comboboxLines.SelectedIndex]}\"");
+			rectangleLiveStateTooltipProvider.ToolTipOpening += (s, e) => rectangleLiveStateTooltipProvider.ToolTip = state.LiveStateTooltip;
 
 			// close
 			buttonClose.Click += async (s, e) => { logger.Flush(); await chat.Stop(); Close(); };
 			Application.Current.Exit += async (s, e) => { logger.Flush(); await chat.Stop(); };
 		}
 
-        private void Timer_Tick(object sender, EventArgs e)
+		private async Task refresh()
 		{
-			if (state.LiveStartTime != DateTime.UnixEpoch)
+			try
 			{
-				rectangleLiveStateTooltipProvider.ToolTip = (DateTime.UtcNow - state.LiveStartTime).ToString(@"hh\:mm\:ss");
-			}
-		}
-
-		private static BitmapImage ConvertToImage(byte[] bytes)
-		{
-			var image = new BitmapImage();
-			using var stream = new MemoryStream(bytes);
-			stream.Position = 0;
-			image.BeginInit();
-			image.CreateOptions = BitmapCreateOptions.PreservePixelFormat;
-			image.CacheOption = BitmapCacheOption.OnLoad;
-			image.UriSource = null;
-			image.StreamSource = stream;
-			image.EndInit();
-			image.Freeze();
-			return image;
-		}
-		private async void handleRefresh(object sender, RoutedEventArgs e)
-        {
-            try
-            {
 				await chat.Stop();
 				var room_id = int.Parse(state.RoomId);
 				var info = await LiveInfo.Load(room_id, logger);
@@ -138,70 +54,71 @@ namespace SGMonitor
 				}
 				state.LiveState = true;
 				state.LiveStartTime = info.StartTime;
-			 	state.LiveTitle = $"{info.LiverName} - {info.LiveTitle}";
-				Title = $"{state.LiveTitle} - danmuji";
+				state.LiveTitle = $"{info.LiverName} - {info.LiveTitle}";
 				state.LiveState = info.Living;
 
 				state.URLs = info.StreamURLs;
 				comboboxLines.SelectedIndex = 0;
-				if (info.StreamURLs.Length > 0)
-				{
-					Clipboard.SetData(DataFormats.Text, info.StreamURLs[0]);
-				}
 
-				await chat.Start(room_id);
-				state.ChatState = "CHAT";
+				// await chat.Start(room_id);
+				// chat.StartDemo();
 			}
-            catch
+			catch
+			{
+				MessageBox.Show("not very success");
+			}
+		}
+
+		private async void handleRefresh(object sender, RoutedEventArgs e)
+        {
+			await refresh();
+		}
+		private async void handleRoomIdKeydown(object sender, KeyEventArgs e)
+		{
+			if (e.Key == Key.Enter)
             {
-                MessageBox.Show("not very success");
+				await refresh();
             }
 		}
 
-		private TextBlock[] textblockchats;
-		private Style textblockchatStyle;
-		private Dictionary<UserType, SolidColorBrush> textblockchatBackgroundColors;
-		private int textblockchatLastIndex;
+		private LiveChatItem[] chatitems;
+		private int chatitemLastIndex;
 		private void InitializeChatPanel()
         {
-			textblockchatStyle = Resources["ChatMessage"] as Style;
-			textblockchatBackgroundColors = new Dictionary<UserType, SolidColorBrush>
+			chatitems = Enumerable.Range(0, 20).Select(_ =>
 			{
-				[UserType.Normal] = Resources["ChatMessageNormalBackground"] as SolidColorBrush,
-				[UserType.Member] = Resources["ChatMessageMemberBackground"] as SolidColorBrush,
-				[UserType.Previledge] = Resources["ChatMessagePreviledgeBackground"] as SolidColorBrush,
-			};
-
-			textblockchats = Enumerable.Range(0, 20).Select(_ =>
-			{
-				var textblock = new TextBlock
-				{
-					Style = textblockchatStyle,
-					Visibility = Visibility.Hidden,
-				};
+				var textblock = new LiveChatItem { Visibility = Visibility.Hidden };
 				textblock.MouseDown += (s, e) => DragMove();
 				stackpanelChat.Children.Add(textblock);
 				return textblock;
 			}).ToArray();
-			textblockchatLastIndex = 0;
+			chatitemLastIndex = 0;
         }
 
 		private readonly LiveChatClient chat;
-		private void handleChat(object sender, LiveChat message)
+		private void handleChatMessageReceived(object sender, LiveChatMessage message)
 		{
-			stackpanelChat.Children.Remove(textblockchats[textblockchatLastIndex]);
+			stackpanelChat.Children.Remove(chatitems[chatitemLastIndex]);
 
-			textblockchats[textblockchatLastIndex].Text = message.Price is int price
-				? $"{message.Time:hh\\:mm\\:ss} [!!\uFFE5{price}!!] [{message.MedalInfo}] {message.UserName}: {message.Content}"
-				: $"{message.Time:hh\\:mm\\:ss} [{message.MedalInfo}] {message.UserName}: {message.Content}";
-			textblockchats[textblockchatLastIndex].Background = textblockchatBackgroundColors[message.UserType];
-			textblockchats[textblockchatLastIndex].Visibility = Visibility.Visible;
+			chatitems[chatitemLastIndex].DataContext = message;
+			chatitems[chatitemLastIndex].Visibility = Visibility.Visible;
 
-			stackpanelChat.Children.Add(textblockchats[textblockchatLastIndex]);
-			textblockchatLastIndex = textblockchatLastIndex == 19 ? 0 : textblockchatLastIndex + 1;
-        }
+			stackpanelChat.Children.Add(chatitems[chatitemLastIndex]);
+			chatitemLastIndex = chatitemLastIndex == 19 ? 0 : chatitemLastIndex + 1;
+
+			state.MessageCount += 1;
+			if (message.Content.Contains("草")) { state.AddWordCount("草", message.Content.Count(c => c == '草')); }
+			if (message.Content.Contains("哈")) { state.AddWordCount("哈", message.Content.Count(c => c == '哈')); }
+			if (message.Content.Contains("？") || message.Content.Contains("?")) { state.AddWordCount("？", message.Content.Count(c => c == '？' || c == '?')); }
+			if (message.Content.Contains("臭人")) { state.AddWordCount("臭人", 1); }
+		}
 
 		#region Border
+		private void handleDragMove(object sender, MouseEventArgs e)
+        {
+			DragMove();
+        }
+
 		private bool m_IsMouseDownSizer;
 		private double m_SizerPrevX;
 		private double m_SizerPrevY;
@@ -211,7 +128,6 @@ namespace SGMonitor
 		{
 			m_IsMouseDownSizer = true;
 			(sender as Rectangle).CaptureMouse();
-
 
 			var current_position = Native.GetCursorPosition();
 			m_PrevTop = Top;
@@ -226,7 +142,7 @@ namespace SGMonitor
 			m_IsMouseDownSizer = false;
 			(sender as Rectangle).ReleaseMouseCapture();
 		}
-		private void handleResizeHandleMouseMove(object sender, MouseEventArgs e)
+        private void handleResizeHandleMouseMove(object sender, MouseEventArgs e)
 		{
 			if (m_IsMouseDownSizer)
 			{
@@ -271,5 +187,20 @@ namespace SGMonitor
 			}
 		}
 		#endregion
+
+		private static BitmapImage ConvertToImage(byte[] bytes)
+		{
+			var image = new BitmapImage();
+			using var stream = new MemoryStream(bytes);
+			stream.Position = 0;
+			image.BeginInit();
+			image.CreateOptions = BitmapCreateOptions.PreservePixelFormat;
+			image.CacheOption = BitmapCacheOption.OnLoad;
+			image.UriSource = null;
+			image.StreamSource = stream;
+			image.EndInit();
+			image.Freeze();
+			return image;
+		}
 	}
 }

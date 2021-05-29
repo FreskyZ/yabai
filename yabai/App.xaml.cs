@@ -2,7 +2,7 @@
 using System.Globalization;
 using System.Windows;
 
-namespace SGMonitor
+namespace yabai
 {
     public partial class App : Application
     {

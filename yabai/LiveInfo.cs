@@ -7,7 +7,7 @@ using System.Linq;
 using System.IO;
 using System.Text;
 
-namespace SGMonitor
+namespace yabai
 {
     internal struct LiveInfo
     {
@@ -60,7 +60,7 @@ namespace SGMonitor
                 name = data.prop("anchor_info").prop("base_info").str("uname");
                 avatar_url = data.prop("anchor_info").prop("base_info").str("face");
             }
-            catch (Exception e) when (e is JsonException 
+            catch (Exception e) when (e is JsonException
                 || e is InvalidOperationException || e is KeyNotFoundException || e is IndexOutOfRangeException)
             {
                 logger.Log($"GET {response.RequestMessage.RequestUri} failed to parse content");

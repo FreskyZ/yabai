@@ -1,9 +1,9 @@
-﻿<Window x:Class="SGMonitor.MainWindow"
+﻿<Window x:Class="yabai.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:SGMonitor"
+        xmlns:local="clr-namespace:yabai"
         mc:Ignorable="d"
         Title="{Binding WindowTitle}"
         WindowStyle="None" ResizeMode="NoResize" 
@@ -22,7 +22,7 @@
             <EventSetter Event="MouseMove" Handler="handleResizeHandleMouseMove"/>
             <EventSetter Event="MouseUp" Handler="handleResizeHandleMouseUp"/>
         </Style>
-        
+
         <Style x:Key="LiveStateIcon" TargetType="Path">
             <Setter Property="Width" Value="32"/>
             <Setter Property="Height" Value="32"/>
@@ -197,7 +197,7 @@
             <Setter Property="Padding" Value="4 2"/>
             <Setter Property="TextWrapping" Value="Wrap"/>
         </Style>
-        
+
     </Window.Resources>
     <Window.DataContext>
         <Binding Source="{StaticResource state}"/>
@@ -214,7 +214,7 @@
             <RowDefinition Height="106"/> <!-- header row rest part -->
             <RowDefinition />
         </Grid.RowDefinitions>
-        
+
         <Rectangle Tag="left" Grid.RowSpan="7" Cursor="SizeWE" Fill="#01FFFFFF" Style="{StaticResource ResizeHandle}"/>
         <Rectangle Tag="right" Grid.RowSpan="7" Grid.Column="2" Cursor="SizeWE" Fill="#01FFFFFF" Style="{StaticResource ResizeHandle}"/>
 
@@ -222,7 +222,7 @@
         <StackPanel x:Name="stackpanelChat" Grid.Row="2" Grid.RowSpan="2" Grid.Column="1">
             <TextBox Background="Transparent" BorderThickness="0" IsReadOnly="True" HorizontalAlignment="Center" Text="{Binding ChatStatistics, Mode=OneWay}"/>
         </StackPanel>
-        
+
         <!-- header rows container -->
         <Border Grid.Column="1" Grid.Row="1" Grid.RowSpan="2">
             <Border.Effect>

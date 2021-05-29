@@ -5,9 +5,9 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Windows.Media;
 
-namespace SGMonitor
+namespace yabai
 {
-    public class MainWindowState : INotifyPropertyChanged
+	public class MainWindowState : INotifyPropertyChanged
 	{
 		private ImageSource p_Icon = null;
 		public ImageSource Icon { get => p_Icon; set { p_Icon = value; Notify(); } }

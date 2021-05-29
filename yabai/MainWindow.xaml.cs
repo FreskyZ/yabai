@@ -7,17 +7,17 @@ using System.Windows.Input;
 using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
 
-namespace SGMonitor
+namespace yabai
 {
-    public partial class MainWindow : Window
+	public partial class MainWindow : Window
 	{
 		private static readonly Regex s_number = new(@"^\d+$");
 
 		private readonly MainWindowState state;
 		private readonly Logger logger;
-        public MainWindow()
-        {
-            InitializeComponent();
+		public MainWindow()
+		{
+			InitializeComponent();
 			InitializeChatPanel();
 			state = DataContext as MainWindowState;
 
@@ -60,7 +60,7 @@ namespace SGMonitor
 				state.URLs = info.StreamURLs;
 				comboboxLines.SelectedIndex = 0;
 
-				// await chat.Start(room_id);
+				await chat.Start(room_id);
 				// chat.StartDemo();
 			}
 			catch
@@ -70,21 +70,21 @@ namespace SGMonitor
 		}
 
 		private async void handleRefresh(object sender, RoutedEventArgs e)
-        {
+		{
 			await refresh();
 		}
 		private async void handleRoomIdKeydown(object sender, KeyEventArgs e)
 		{
 			if (e.Key == Key.Enter)
-            {
+			{
 				await refresh();
-            }
+			}
 		}
 
 		private LiveChatItem[] chatitems;
 		private int chatitemLastIndex;
 		private void InitializeChatPanel()
-        {
+		{
 			chatitems = Enumerable.Range(0, 20).Select(_ =>
 			{
 				var textblock = new LiveChatItem { Visibility = Visibility.Hidden };
@@ -93,7 +93,7 @@ namespace SGMonitor
 				return textblock;
 			}).ToArray();
 			chatitemLastIndex = 0;
-        }
+		}
 
 		private readonly LiveChatClient chat;
 		private void handleChatMessageReceived(object sender, LiveChatMessage message)
@@ -115,9 +115,9 @@ namespace SGMonitor
 
 		#region Border
 		private void handleDragMove(object sender, MouseEventArgs e)
-        {
+		{
 			DragMove();
-        }
+		}
 
 		private bool m_IsMouseDownSizer;
 		private double m_SizerPrevX;
@@ -137,12 +137,12 @@ namespace SGMonitor
 			m_SizerPrevX = current_position.X;
 			m_SizerPrevY = current_position.Y;
 		}
-        private void handleResizeHandleMouseUp(object sender, MouseButtonEventArgs e)
+		private void handleResizeHandleMouseUp(object sender, MouseButtonEventArgs e)
 		{
 			m_IsMouseDownSizer = false;
 			(sender as Rectangle).ReleaseMouseCapture();
 		}
-        private void handleResizeHandleMouseMove(object sender, MouseEventArgs e)
+		private void handleResizeHandleMouseMove(object sender, MouseEventArgs e)
 		{
 			if (m_IsMouseDownSizer)
 			{
@@ -154,7 +154,7 @@ namespace SGMonitor
 
 				if (tag.Contains("left"))
 				{
-					offx = (m_PrevWidth - offx) >= MinWidth 
+					offx = (m_PrevWidth - offx) >= MinWidth
 						? ((m_PrevWidth - offx) > MaxWidth ? (m_PrevWidth - MaxWidth) : offx)
 						: (m_PrevWidth - MinWidth);
 					Width = m_PrevWidth - offx;
@@ -170,7 +170,7 @@ namespace SGMonitor
 				}
 				if (tag.Contains("right"))
 				{
-					offx = (m_PrevWidth + offx) >= MinWidth 
+					offx = (m_PrevWidth + offx) >= MinWidth
 						? ((m_PrevWidth + offx) > MaxWidth ? (MaxWidth - m_PrevWidth) : offx)
 						: (MinWidth - m_PrevWidth);
 					Width = m_PrevWidth + offx;
@@ -179,7 +179,7 @@ namespace SGMonitor
 				// bottom resize is not available currently, reserve it because it is complex to rethink the logic
 				if (tag.Contains("bottom"))
 				{
-					offy = (m_PrevHeight + offy) >= MinHeight 
+					offy = (m_PrevHeight + offy) >= MinHeight
 						? ((m_PrevHeight + offy) > MaxHeight ? (MaxHeight - m_PrevHeight) : offy)
 						: (MinHeight - m_PrevHeight);
 					Height = m_PrevHeight + offy;

@@ -2,7 +2,7 @@
 using System.IO;
 using System.Timers;
 
-namespace SGMonitor
+namespace yabai
 {
     public class Logger
     {

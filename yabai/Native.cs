@@ -1,6 +1,6 @@
 ﻿using System.Runtime.InteropServices;
 
-namespace SGMonitor
+namespace yabai
 {
     internal class Native
     {

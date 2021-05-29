@@ -10,7 +10,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace SGMonitor
+namespace yabai
 {
     internal struct LiveChatMessage
     {

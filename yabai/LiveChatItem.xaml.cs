@@ -1,6 +1,6 @@
 ﻿using System.Windows.Controls;
 
-namespace SGMonitor
+namespace yabai
 {
     public partial class LiveChatItem : UserControl
     {

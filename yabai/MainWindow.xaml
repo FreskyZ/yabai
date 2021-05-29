@@ -5,12 +5,12 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:yabai"
         mc:Ignorable="d"
-        Title="{Binding WindowTitle}"
+        Title="{Binding ApplicationTitle}"
         WindowStyle="None" ResizeMode="NoResize" 
         Background="Transparent" AllowsTransparency="True" Topmost="True"
         Height="800" Width="320" MinWidth="300" Icon="{Binding Icon}">
     <Window.Resources>
-        <local:MainWindowState x:Key="state" />
+        <local:MainWindowViewModel x:Key="viewmodel" />
 
         <SolidColorBrush x:Key="BackgroundColor">#AFFFFFFF</SolidColorBrush>
         <SolidColorBrush x:Key="OptionBackground">#C0FFFFFF</SolidColorBrush>
@@ -34,10 +34,10 @@
                 </Setter.Value>
             </Setter>
             <Style.Triggers>
-                <DataTrigger Binding="{Binding DataContext.LiveStateDescription, RelativeSource={RelativeSource AncestorType=Window}}" Value="LIVE">
+                <DataTrigger Binding="{Binding DataContext.LiveState, RelativeSource={RelativeSource AncestorType=Window}}" Value="LIVE">
                     <Setter Property="Fill" Value="Green"/>
                 </DataTrigger>
-                <DataTrigger Binding="{Binding DataContext.LiveStateDescription, RelativeSource={RelativeSource AncestorType=Window}}" Value="NOT LIVE">
+                <DataTrigger Binding="{Binding DataContext.LiveState, RelativeSource={RelativeSource AncestorType=Window}}" Value="NOT LIVE">
                     <Setter Property="Fill" Value="Orange"/>
                 </DataTrigger>
             </Style.Triggers>
@@ -192,15 +192,9 @@
             </Style.Triggers>
         </Style>
 
-        <Style x:Key="ChatMessage" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="{Binding DataContext.DisplayFontSize, RelativeSource={RelativeSource AncestorType=Window}}"/>
-            <Setter Property="Padding" Value="4 2"/>
-            <Setter Property="TextWrapping" Value="Wrap"/>
-        </Style>
-
     </Window.Resources>
     <Window.DataContext>
-        <Binding Source="{StaticResource state}"/>
+        <Binding Source="{StaticResource viewmodel}"/>
     </Window.DataContext>
     <Grid>
         <Grid.ColumnDefinitions>
@@ -262,15 +256,15 @@
                                     <RowDefinition Height="14"/>
                                 </Grid.RowDefinitions>
                                 <Path Style="{StaticResource LiveStateIcon}"/>
-                                <TextBlock Grid.Column="1" FontSize="10" VerticalAlignment="Bottom" Text="{Binding LiveStateDescription}"/>
+                                <TextBlock Grid.Column="1" FontSize="10" VerticalAlignment="Bottom" Text="{Binding LiveState}"/>
                                 <Rectangle x:Name="rectangleLiveStateTooltipProvider" Grid.ColumnSpan="2" Fill="#00FFFFFF" ToolTip="" />
                                 <Path Grid.Row="1" Style="{StaticResource ChatStateIcon}" />
                                 <TextBlock Grid.Row="1" Grid.Column="1" FontSize="10" VerticalAlignment="Bottom" Text="{Binding ChatState}"/>
-                                <Rectangle Grid.Row="1" Grid.ColumnSpan="2" Fill="#00FFFFFF" ToolTip="{Binding ChatStateDescription}"/>
+                                <Rectangle Grid.Row="1" Grid.ColumnSpan="2" Fill="#00FFFFFF" ToolTip="{Binding ChatStateTooltip}"/>
                             </Grid>
                         </StackPanel>
                         <TextBlock Margin="0 0 12 0" Grid.Column="1" TextTrimming="CharacterEllipsis" Height="28" Padding="0 7"
-                               Background="#00FFFFFF" MouseDown="handleDragMove" Text="{Binding LiveTitle}" ToolTip="{Binding LiveTitle}"/>
+                               Background="#00FFFFFF" MouseDown="handleDragMove" Text="{Binding WindowTitle}" ToolTip="{Binding WindowTitleTooltip}"/>
 
                         <StackPanel Orientation="Horizontal" FlowDirection="RightToLeft" Grid.Column="2">
                             <Button x:Name="buttonClose" Style="{StaticResource CloseButton}" />
@@ -285,8 +279,7 @@
                     <StackPanel Orientation="Horizontal" Background="{StaticResource OptionBackground}">
                         <TextBlock VerticalAlignment="Center" Margin="8 0 0 0">Room Id</TextBlock>
                         <TextBox x:Name="textboxRoomId" Width="72" 
-                                 Margin="8 0 0 0" MaxLength="10" VerticalAlignment="Center" 
-                                 KeyDown="handleRoomIdKeydown" Text="{Binding Path=RoomId, Mode=TwoWay}"/>
+                                 Margin="8 0 0 0" MaxLength="10" VerticalAlignment="Center" Text="{Binding RoomIdText, Mode=TwoWay}"/>
                     </StackPanel>
                 </Border>
 
@@ -294,26 +287,23 @@
                 <Border Grid.Row="2" BorderThickness="1 0 1 0" Style="{StaticResource OptionContainer}">
                     <StackPanel Orientation="Horizontal" Background="{StaticResource OptionBackground}">
                         <TextBlock VerticalAlignment="Center" Margin="8 2 0 0">Lines</TextBlock>
-                        <ComboBox x:Name="comboboxLines" Height="20" Width="80" Margin="8 3 0 0" ItemsSource="{Binding URLNames}" />
-                        <Button x:Name="buttonCopyLine" Height="20" Margin="12 3 0 0" Padding="8 2 8 0" FontSize="10" IsEnabled="{Binding URLButtonEnabled}">COPY</Button>
-                        <Button x:Name="buttonOpenLine" Height="20" Margin="12 3 0 0" Padding="8 2 8 0" FontSize="10" IsEnabled="{Binding URLButtonEnabled}">OPEN</Button>
+                        <ComboBox x:Name="comboboxLines" Height="20" Width="80" Margin="8 3 0 0" ItemsSource="{Binding StreamURLNames}" />
+                        <Button x:Name="buttonCopyLine" Height="20" Margin="12 3 0 0" Padding="8 2 8 0" FontSize="10" IsEnabled="{Binding StreamURLButtonEnabled}">COPY</Button>
+                        <Button x:Name="buttonOpenLine" Height="20" Margin="12 3 0 0" Padding="8 2 8 0" FontSize="10" IsEnabled="{Binding StreamURLButtonEnabled}">OPEN</Button>
                     </StackPanel>
                 </Border>
                 <Border Grid.Row="3" BorderThickness="1 0 1 1" Style="{StaticResource OptionContainer}">
                     <StackPanel Orientation="Horizontal" Background="{StaticResource OptionBackground}">
                         <TextBlock  Margin="8 4 0 0">Media Player</TextBlock>
-                        <TextBox VerticalAlignment="Top" Width="180" Margin="8 4 0 0" FontSize="10" Text="{Binding URLOpener, Mode=TwoWay}"/>
+                        <TextBox VerticalAlignment="Top" Width="180" Margin="8 4 0 0" FontSize="10" Text="{Binding MediaPlayer, Mode=TwoWay}"/>
                     </StackPanel>
                 </Border>
 
-                <!-- row 5: display item count -->
+                <!-- row 5: none for now 
                 <Border Grid.Row="4" BorderThickness="1 0 1 1" Style="{StaticResource OptionContainer}">
                     <StackPanel Orientation="Horizontal" Background="{StaticResource OptionBackground}">
-                        <TextBlock VerticalAlignment="Center" Margin="8 0 0 0">Display Items</TextBlock>
-                        <TextBox VerticalAlignment="Center" Margin="8 0 0 0" MinWidth="20" Text="{Binding DisplayCount}"/>
-                        <TextBlock VerticalAlignment="Center" Margin="8 0 0 0">Items</TextBlock>
                     </StackPanel>
-                </Border>
+                </Border>-->
             </Grid>
         </Border>
     </Grid>

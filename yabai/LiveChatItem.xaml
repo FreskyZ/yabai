@@ -14,13 +14,32 @@
             <Setter Property="VerticalAlignment" Value="Top"/>
             <Setter Property="Background" Value="#5F9FEF"/>
             <Setter Property="CornerRadius" Value="2"/>
+            <Setter Property="Margin" Value="0 0 4 0"/>
         </Style>
         <Style x:Key="MemberInfo" TargetType="TextBlock">
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="FontSize" Value="10"/>
             <Setter Property="Padding" Value="3 4 3 2"/>
             <Style.Triggers>
-                <DataTrigger Binding="{Binding DataContext.HasMemberInfo, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="False">
+                <DataTrigger Binding="{Binding DataContext.MemberInfo, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="{x:Null}">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        
+        <Style x:Key="PriceContainer" TargetType="Border">
+            <Setter Property="Height" Value="20"/>
+            <Setter Property="VerticalAlignment" Value="Top"/>
+            <Setter Property="Background" Value="Orange"/>
+            <Setter Property="CornerRadius" Value="2"/>
+            <Setter Property="Margin" Value="-4 0 4 0"/>
+        </Style>
+        <Style x:Key="Price" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="Padding" Value="3 4 3 2"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding DataContext.Price, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="{x:Null}">
                     <Setter Property="Visibility" Value="Collapsed" />
                 </DataTrigger>
             </Style.Triggers>
@@ -32,7 +51,6 @@
             <Setter Property="Foreground" Value="#606060"/>
             <Setter Property="Height" Value="18"/>
             <Setter Property="Padding" Value="0 3 2 0"/>
-            <Setter Property="Margin" Value="4 0 0 0"/>
             <Setter Property="VerticalAlignment" Value="Top"/>
             <Style.Triggers>
                 <DataTrigger Binding="{Binding DataContext.IsMember, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True">
@@ -58,13 +76,17 @@
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="auto" />
                 <ColumnDefinition Width="auto" />
+                <ColumnDefinition Width="auto" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
             <Border Style="{StaticResource MemberInfoContainer}">
                 <TextBlock Style="{StaticResource MemberInfo}" Text="{Binding MemberInfo}"/>
             </Border>
-            <TextBlock Grid.Column="1" Style="{StaticResource UserName}" Text="{Binding UserName}" ToolTip="{Binding UserName}"/>
-            <TextBlock Grid.Column="2" Style="{StaticResource Content}" Text="{Binding Content}"/>
+            <Border Grid.Column="1" Style="{StaticResource PriceContainer}">
+                <TextBlock Style="{StaticResource Price}" Text="{Binding Price}"/>
+            </Border>
+            <TextBlock Grid.Column="2" Style="{StaticResource UserName}" Text="{Binding UserName}" ToolTip="{Binding UserName}"/>
+            <TextBlock Grid.Column="3" Style="{StaticResource Content}" Text="{Binding Content}"/>
         </Grid>
     </Border>
 </UserControl>

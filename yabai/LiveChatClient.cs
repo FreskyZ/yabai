@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
-using System.Net.Http;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
@@ -15,7 +14,7 @@ namespace yabai
     internal struct LiveChatMessage
     {
         public DateTime Time { get; set; }
-        public int? Price { get; init; } // not null for super chat
+        public string Price { get; init; } // not null for super chat
         public bool IsMember { get; init; } // is member in current room
         public string MemberInfo { get; init; } // selected displayed member and level
         public bool HasMemberInfo { get => MemberInfo != null; } // ui visibility
@@ -25,63 +24,19 @@ namespace yabai
 
     internal class LiveChatClient
     {
-        private static readonly HttpClient http_client = new();
-
         private readonly Logger logger;
         public LiveChatClient(Logger logger)
         {
             this.logger = logger;
         }
 
-        private async Task<(string token, string[] urls)> getChatInfo()
-        {
-            using var query = new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["type"] = "0",
-                ["id"] = room_id.ToString(),
-            });
-            var response = await http_client.GetAsync(new UriBuilder
-            {
-                Scheme = "https",
-                Host = "api.live.bilibili.com",
-                Path = "/xlive/web-room/v1/index/getDanmuInfo",
-                Query = await query.ReadAsStringAsync(),
-            }.Uri);
-
-            if (!response.IsSuccessStatusCode)
-            {
-                logger.Log($"GET {response.RequestMessage.RequestUri} failed with status {response.StatusCode}");
-                throw new InvalidOperationException($"failed to get danmu info: status {response.StatusCode}");
-            }
-
-            var content = await response.Content.ReadAsStringAsync();
-            logger.Log($"GET {response.RequestMessage.RequestUri} content {content}");
-
-            try
-            {
-                var document = await JsonDocument.ParseAsync(new MemoryStream(Encoding.UTF8.GetBytes(content)));
-                var data = document.RootElement.GetProperty("data");
-
-                var token = data.GetProperty("token").GetString();
-                var urls = data.GetProperty("host_list").EnumerateArray().Select(hostport =>
-                    $"wss://{hostport.GetProperty("host").GetString()}:{hostport.GetProperty("wss_port").GetInt32()}/sub").ToArray();
-                return (token, urls);
-            }
-            catch (Exception e) when (e is JsonException
-                || e is InvalidOperationException || e is KeyNotFoundException || e is IndexOutOfRangeException)
-            {
-                logger.Log($"GET {response.RequestMessage.RequestUri} failed to parse content");
-                throw new InvalidOperationException("failed to get live info: failed to parse content");
-            }
-        }
-
-        private async Task SendVerify(string token)
+        private async Task SendVerifyAsync(string token)
         {
             try
             {
                 if (websocket?.State == WebSocketState.Open)
                 {
-                    var payload = $"{{\"roomid\":{room_id},\"protover\":2,\"platform\":\"yabai\",\"key\":\"{token}\"}}";
+                    var payload = $"{{\"roomid\":{real_id},\"protover\":2,\"platform\":\"yabai\",\"key\":\"{token}\"}}";
                     var datapack_rest = new byte[] { 0, 16, 0, 1, 0, 0, 0, 7, 0, 0, 0, 1 }.Concat(Encoding.ASCII.GetBytes(payload)).ToArray();
                     var datapack = BitConverter.GetBytes(datapack_rest.Length + 4).Reverse().Concat(datapack_rest).ToArray();
 
@@ -92,31 +47,36 @@ namespace yabai
             catch (Exception e)
             {
                 logger.Log($"send verify error: {e.Message}");
-                await Stop();
+                await StopAsync();
             }
         }
 
-        private static readonly byte[] s_heartbeat = new byte[] { 0, 0, 0, 16, 0, 16, 0, 1, 0, 0, 0, 2, 0, 0, 0, 1 };
-        private async Task SendHeartbeat()
+        private static readonly byte[] heartbeat_datapack = new byte[] { 0, 0, 0, 16, 0, 16, 0, 1, 0, 0, 0, 2, 0, 0, 0, 1 };
+        private async Task SendHeartbeatAsync()
         {
+            var cancel_token = heartbeat_source.Token;
             try
             {
-                while (websocket.State == WebSocketState.Open)
+                while (websocket?.State == WebSocketState.Open && !cancel_token.IsCancellationRequested)
                 {
                     logger.Log("send heartbeat");
-                    await websocket.SendAsync(s_heartbeat, WebSocketMessageType.Binary, true, CancellationToken.None);
+                    await websocket.SendAsync(heartbeat_datapack, WebSocketMessageType.Binary, true, cancel_token);
                     await Task.Delay(30_000);
                 }
+            }
+            catch (TaskCanceledException)
+            {
+                // ignore
             }
             catch (Exception e)
             {
                 logger.Log($"send heartbeat error: {e.Message}");
-                await Stop();
+                await StopAsync();
             }
         }
 
         public EventHandler<LiveChatMessage> MessageReceived;
-        private void ReceiveMessage(JsonElement message)
+        private void ProcessMessage(JsonElement message)
         {
             try
             {
@@ -140,7 +100,7 @@ namespace yabai
                     MessageReceived?.Invoke(this, new LiveChatMessage
                     {
                         Time = data.time("ts"),
-                        Price = data.i32("price"),
+                        Price = $"\uFFE5{data.i32("price")}",
                         IsMember = data.TryGetProperty("medal_info", out var medal_info)
                             && medal_info.TryGetProperty("guard_level", out var guard_level)
                             && guard_level.GetInt32() > 0,
@@ -159,18 +119,19 @@ namespace yabai
         }
 
         public EventHandler<string> StateChanged; // CHAT, NOT CHAT, ERROR
-        private async Task ReceiveData()
+        private async Task ReceiveAsync()
         {
+            var cancel_token = receive_source.Token;
             try
             {
-                while (websocket.State == WebSocketState.Open)
+                while (websocket.State == WebSocketState.Open && !cancel_token.IsCancellationRequested)
                 {
                     using var receive_stream = new MemoryStream();
                     var receive_buffer = WebSocket.CreateClientBuffer(8192, 8192);
                     WebSocketReceiveResult receive_result;
                     do
                     {
-                        receive_result = await websocket.ReceiveAsync(receive_buffer, CancellationToken.None);
+                        receive_result = await websocket.ReceiveAsync(receive_buffer, cancel_token);
                         receive_stream.Write(receive_buffer.Array, receive_buffer.Offset, receive_result.Count);
                     } while (!receive_result.EndOfMessage);
 
@@ -210,50 +171,66 @@ namespace yabai
                             }
                             else
                             {
-                                ReceiveMessage(chunk_data);
+                                ProcessMessage(chunk_data);
                             }
                         }
                         offset += chunk_size;
                     }
                 }
             }
+            catch (TaskCanceledException)
+            {
+                // ignore
+            }
             catch (Exception e)
             {
                 logger.Log($"receive data error: {e.Message}");
-                await Stop();
+                await StopAsync();
             }
         }
 
-        private int room_id;
+        private int real_id;
         private ClientWebSocket websocket;
-        public async Task Start(int room_id)
+        private CancellationTokenSource receive_source;
+        private CancellationTokenSource heartbeat_source;
+        public async Task StartAsync(int real_id, string chat_server, string token)
         {
+            this.real_id = real_id;
             StateChanged?.Invoke(this, "NOT CHAT");
 
-            this.room_id = room_id;
-            var (token, websocket_urls) = await getChatInfo();
-
             websocket = new ClientWebSocket();
-            await websocket.ConnectAsync(new UriBuilder(websocket_urls[0]).Uri, CancellationToken.None);
-            await SendVerify(token);
+            await websocket.ConnectAsync(new Uri(chat_server), CancellationToken.None);
+            await SendVerifyAsync(token);
 
-            _ = Task.WhenAll(SendHeartbeat(), ReceiveData()).ConfigureAwait(false);
+            receive_source = new CancellationTokenSource();
+            heartbeat_source = new CancellationTokenSource();
+            _ = Task.WhenAll(SendHeartbeatAsync(), ReceiveAsync()).ConfigureAwait(false);
         }
-        public async Task Stop()
+        public async Task StopAsync()
         {
             if (websocket?.State == WebSocketState.Open)
             {
+                heartbeat_source.Cancel();
+                var timeout = new CancellationTokenSource(1_000); // 5 seconds
+
                 try
                 {
-                    await websocket.CloseAsync(WebSocketCloseStatus.NormalClosure, null, CancellationToken.None);
+                    await websocket.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "Closing", timeout.Token);
+                    while (websocket.State != WebSocketState.Closed && !timeout.Token.IsCancellationRequested) ;
                 }
                 catch
                 {
-                    // ignore
+                    // ignore TaskCancelException and other exceptions
                 }
+                receive_source.Cancel();
             }
+
             StateChanged?.Invoke(this, "NOT CHAT");
-            websocket = null;
+            if (websocket != null)
+            {
+                websocket.Dispose();
+                websocket = null;
+            }
         }
 
         public void StartDemo()
@@ -270,6 +247,7 @@ namespace yabai
             {
                 Time = DateTime.Now,
                 IsMember = true,
+                Price = "\uffe530",
                 MemberInfo = "单腿人21",
                 UserName = "用户名2",
                 Content = "弹幕消息12HENCHANGHENCHANGHENCHANGHENCHANGHENCHANG",
@@ -277,6 +255,7 @@ namespace yabai
             MessageReceived?.Invoke(this, new LiveChatMessage
             {
                 Time = DateTime.Now,
+                Price = "\uffe530",
                 IsMember = false,
                 MemberInfo = null,
                 UserName = "user name 3",

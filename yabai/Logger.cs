@@ -16,10 +16,9 @@ namespace yabai
             timer.Start();
         }
 
-        public Logger Log(string message)
+        public void Log(string message)
         {
             writer.Write($"[{DateTime.UtcNow.ToLongDateString()} {DateTime.UtcNow.ToLongTimeString()}] {message}\n");
-            return this;
         }
 
         public void Flush()

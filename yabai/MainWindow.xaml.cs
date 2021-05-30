@@ -1,8 +1,10 @@
 ﻿using System;
+using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Shapes;
 using System.Windows.Threading;
@@ -15,16 +17,17 @@ namespace yabai
 
         private readonly Logger logger;
         private readonly MainWindowViewModel state;
+
+        private readonly LiveChatClient chat_client;
         public MainWindow()
         {
             InitializeComponent();
-            InitializeChatPanel();
             state = DataContext as MainWindowViewModel;
 
             logger = new Logger();
             chat_client = new LiveChatClient(logger);
-            chat_client.MessageReceived += handleChatMessageReceived;
             chat_client.StateChanged += (s, e) => state.SetChatState(e);
+            chat_client.MessageReceived += handleMessageReceived;
 
             // small event handlers
             textboxRoomId.PreviewTextInput += (s, e) => e.Handled = !s_number.IsMatch(e.Text);
@@ -41,6 +44,11 @@ namespace yabai
             refresh_timer = new DispatcherTimer();
             refresh_timer.Interval = TimeSpan.FromMinutes(5);
             refresh_timer.Tick += handleRefreshInfo;
+
+            message_record_timer = new DispatcherTimer();
+            message_record_timer.Interval = TimeSpan.FromMinutes(1);
+            message_record_timer.Tick += handleFlushMessageRecord;
+            message_record_timer.Start(); // this is simly always running and try to flush the stream writer
         }
 
         private DispatcherTimer refresh_timer;
@@ -60,44 +68,55 @@ namespace yabai
             var info = await LiveInfo.GetAsync(state.RoomId, logger);
 
             state.SetLiveInfo(info);
-            chat_client.StartDemo(); return;
+            // chat_client.StartDemo(); return;
             state.SetStreamURLs(await LiveInfo.GetStreamURLAsync(info.RealId, logger));
             comboboxLines.SelectedIndex = 0;
 
             var (token, chat_urls) = await LiveInfo.GetChatInfoAsync(info.RealId, logger);
             await chat_client.StartAsync(info.RealId, chat_urls[0], token);
 
-            if (info.Living) { refresh_timer.Start(); }
-        }
+            if (info.Living) 
+            { 
+                refresh_timer.Start(); 
+            }
 
-        private LiveChatItem[] chatitems;
-        private int chatitemLastIndex;
-        private readonly LiveChatClient chat_client;
-        private void InitializeChatPanel()
-        {
-            chatitems = Enumerable.Range(0, 20).Select(_ =>
+            if (message_record != null)
             {
-                var textblock = new LiveChatItem { Visibility = Visibility.Hidden };
-                textblock.MouseDown += (s, e) => DragMove();
-                stackpanelChat.Children.Add(textblock);
-                return textblock;
-            }).ToArray();
-            chatitemLastIndex = 0;
+                message_record.Flush();
+                message_record.Dispose();
+                message_record = null;
+            }
+            if (info.Living)
+            {
+                message_record = File.AppendText($"chat-{info.RoomId}-{info.StartTime:yyMMdd-HHmmss}.csv");
+                message_record.WriteLine("time,member,price,user,content");
+            }
         }
-        private void handleChatMessageReceived(object sender, LiveChatMessage message)
+
+        private void handleScrollChange(object sender, ScrollChangedEventArgs e)
         {
-            stackpanelChat.Children.Remove(chatitems[chatitemLastIndex]);
+            if (e.ExtentHeightChange > 0 && listboxchat.Items.Count > 0 && !state.LockScroll)
+            {
+                listboxchat.ScrollIntoView(listboxchat.Items[listboxchat.Items.Count - 1]);
+            }
+        }
 
-            chatitems[chatitemLastIndex].DataContext = message;
-            chatitems[chatitemLastIndex].Visibility = Visibility.Visible;
-
-            stackpanelChat.Children.Add(chatitems[chatitemLastIndex]);
-            chatitemLastIndex = chatitemLastIndex == 19 ? 0 : chatitemLastIndex + 1;
-
-            state.AddMessageCount();
-            if (message.Content.Contains("草")) { state.AddWordCount("草", message.Content.Count(c => c == '草')); }
-            if (message.Content.Contains("哈")) { state.AddWordCount("哈", message.Content.Count(c => c == '哈')); }
-            if (message.Content.Contains("？") || message.Content.Contains("?")) { state.AddWordCount("？", message.Content.Count(c => c == '？' || c == '?')); }
+        private StreamWriter message_record;
+        private DispatcherTimer message_record_timer;
+        private void handleMessageReceived(object sender, LiveChatMessage message)
+        {
+            state.AddMessage(message);
+            if (message_record != null)
+            {
+                message_record.WriteLine($"{message.Time:yyMMdd-HHmmss},{message.MemberInfo},{message.Price},{message.UserName},\"{message.Content}\"");
+            }
+        }
+        private void handleFlushMessageRecord(object sender, EventArgs e)
+        {
+            if (message_record != null)
+            {
+                message_record.Flush();
+            }
         }
 
         private bool m_IsMouseDownSizer;
@@ -175,7 +194,4 @@ namespace yabai
 }
 
 // TODO:
-// 1. change to ListBox and display all messages
-// 2. display price
 // 3. log all messages to csv "time,user,content", try wordcloud, add replay csv
-// 4. improve IsMember logic

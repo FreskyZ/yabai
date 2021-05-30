@@ -1,9 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Windows;
+using System.Windows.Data;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
@@ -54,7 +58,7 @@ namespace yabai
             Notify(nameof(OptionsVisible));
         }
 
-        private int room_id = 116;
+        private int room_id = 92613;
         public int RoomId => room_id;
         public string RoomIdText { get => room_id.ToString(); set { room_id = int.Parse(value); Notify(); } }
 
@@ -73,22 +77,23 @@ namespace yabai
             Notify(nameof(MediaPlayer));
         }
 
-        private int message_count;
+        private ObservableCollection<LiveChatMessage> messages = new ObservableCollection<LiveChatMessage>();
         private readonly Dictionary<string, int> word_count = new() { ["草"] = 0, ["哈"] = 0, ["？"] = 0 };
-        public string ChatStatistics { get => $"count {message_count}, {string.Join(", ", word_count.Select(kv => $"{kv.Key}: {kv.Value}"))}"; }
-        public void AddMessageCount(int count = 1)
+        public ObservableCollection<LiveChatMessage> Messages => messages;
+        public string ChatStatistics { get => $"count {Messages.Count}, {string.Join(", ", word_count.Select(kv => $"{kv.Key}: {kv.Value}"))}"; }
+        public void AddMessage(LiveChatMessage message)
         {
-            message_count += count;
+            messages.Add(message);
+            if (message.Content.Contains("草")) { word_count["草"] += message.Content.Count(c => c == '草'); }
+            if (message.Content.Contains("哈")) { word_count["哈"] += message.Content.Count(c => c == '哈'); }
+            if (message.Content.Contains("？") || message.Content.Contains("?")) { word_count["？"] += message.Content.Count(c => c == '？' || c == '?'); }
+
+            Notify(nameof(Messages));
             Notify(nameof(ChatStatistics));
         }
-        public void AddWordCount(string word, int count = 1)
-        {
-            if (word_count.ContainsKey(word))
-            {
-                word_count[word] += count;
-                Notify(nameof(ChatStatistics));
-            }
-        }
+
+        private bool lock_scroll;
+        public bool LockScroll { get => lock_scroll; set { lock_scroll = value; Notify(nameof(LockScroll)); } }
 
         public event PropertyChangedEventHandler PropertyChanged;
         public void Notify([CallerMemberName] string propertyName = "")
@@ -117,5 +122,23 @@ namespace yabai
 
             return image;
         }
+    }
+
+    public class NullCollapseConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture) => value == null ? Visibility.Collapsed : Visibility.Visible;
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => throw new NotSupportedException();
+    }
+    public class MinusSomethingConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture) => (double)value - double.Parse(parameter.ToString());
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => throw new NotSupportedException();
+    }
+    public class LiveChatMessageUserNameColorConverter : IValueConverter
+    {
+        private static readonly SolidColorBrush NormalColor = new SolidColorBrush(new Color { R = 0x60, G = 0x60, B = 0x60, A = 0xFF });
+        private static readonly SolidColorBrush MemberColor = new SolidColorBrush(new Color { R = 0x5F, G = 0x8F, B = 0xEF, A = 0xDF });
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture) => (bool)value ? MemberColor : NormalColor;
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => throw new NotSupportedException();
     }
 }

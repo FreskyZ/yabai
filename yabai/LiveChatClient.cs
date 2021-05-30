@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
@@ -11,13 +10,12 @@ using System.Threading.Tasks;
 
 namespace yabai
 {
-    internal struct LiveChatMessage
+    public struct LiveChatMessage
     {
         public DateTime Time { get; set; }
         public string Price { get; init; } // not null for super chat
         public bool IsMember { get; init; } // is member in current room
         public string MemberInfo { get; init; } // selected displayed member and level
-        public bool HasMemberInfo { get => MemberInfo != null; } // ui visibility
         public string UserName { get; init; }
         public string Content { get; init; }
     }
@@ -103,9 +101,9 @@ namespace yabai
                         Price = $"\uFFE5{data.i32("price")}",
                         IsMember = data.TryGetProperty("medal_info", out var medal_info)
                             && medal_info.TryGetProperty("guard_level", out var guard_level)
-                            && guard_level.GetInt32() > 0,
+                            && guard_level.i32() > 0 || medal_info.i32("anchor_roomid") == real_id,
                         MemberInfo = data.TryGetProperty("medal_info", out var medal_info2) ?
-                            $"{medal_info2.str("medal_name")}{medal_info2.str("medal_level")}" : null,
+                            $"{medal_info2.str("medal_name")}{medal_info2.i32("medal_level")}" : null,
                         UserName = data.prop("user_info").str("uname"),
                         Content = data.str("message"),
                     });

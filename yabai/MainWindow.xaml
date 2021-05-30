@@ -8,9 +8,12 @@
         Title="{Binding ApplicationTitle}"
         WindowStyle="None" ResizeMode="NoResize" 
         Background="Transparent" AllowsTransparency="True" Topmost="True"
-        Height="800" Width="320" MinWidth="300" Icon="{Binding Icon}">
+        Height="520" Width="320" MinWidth="300" Icon="{Binding Icon}">
     <Window.Resources>
         <local:MainWindowViewModel x:Key="viewmodel" />
+        <local:NullCollapseConverter x:Key="ncc"/>
+        <local:MinusSomethingConverter x:Key="msc"/>
+        <local:LiveChatMessageUserNameColorConverter x:Key="lcmuncc"/>
 
         <SolidColorBrush x:Key="BackgroundColor">#AFFFFFFF</SolidColorBrush>
         <SolidColorBrush x:Key="OptionBackground">#C0FFFFFF</SolidColorBrush>
@@ -203,19 +206,53 @@
             <ColumnDefinition Width="6"/> <!-- right shadow and right resize handle -->
         </Grid.ColumnDefinitions>
         <Grid.RowDefinitions>
-            <RowDefinition Height="6"/> <!-- top shadow -->
+            <RowDefinition Height="6"/> <!-- top shadow and top resize handle -->
             <RowDefinition Height="32"/> <!-- chat panel is displayed after row 1 with additional margin -->
             <RowDefinition Height="106"/> <!-- header row rest part -->
             <RowDefinition />
+            <RowDefinition Height="6"/> <!-- bottom resize handle -->
         </Grid.RowDefinitions>
 
-        <Rectangle Tag="left" Grid.RowSpan="7" Cursor="SizeWE" Fill="#01FFFFFF" Style="{StaticResource ResizeHandle}"/>
-        <Rectangle Tag="right" Grid.RowSpan="7" Grid.Column="2" Cursor="SizeWE" Fill="#01FFFFFF" Style="{StaticResource ResizeHandle}"/>
-
         <!-- chat message panel -->
-        <StackPanel x:Name="stackpanelChat" Grid.Row="2" Grid.RowSpan="2" Grid.Column="1">
-            <TextBox Background="Transparent" BorderThickness="0" IsReadOnly="True" HorizontalAlignment="Center" Text="{Binding ChatStatistics, Mode=OneWay}"/>
-        </StackPanel>
+        <ListBox x:Name="listboxchat" Grid.Row="2" Grid.RowSpan="2" Grid.Column="1"
+                 Background="#01FFFFFF" BorderThickness="0" ItemsSource="{Binding Messages}" 
+                 HorizontalContentAlignment="Stretch"
+                 ScrollViewer.ScrollChanged="handleScrollChange"
+                 ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Hidden">
+            <ListBox.ItemContainerStyle>
+                <Style TargetType="ListBoxItem">
+                    <Setter Property="IsHitTestVisible" Value="False"/>
+                    <Setter Property="Margin" Value="0"/>
+                    <Setter Property="Padding" Value="0"/>
+                </Style>
+            </ListBox.ItemContainerStyle>
+            <ListBox.ItemTemplate>
+                <DataTemplate DataType="{x:Type local:LiveChatMessage}">
+                    <Grid Width="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=ListBox}, Converter={StaticResource msc}, ConverterParameter=4}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="auto" />
+                            <ColumnDefinition Width="auto" />
+                            <ColumnDefinition Width="auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Border Grid.ColumnSpan="4" Background="#9FCFCFCF" CornerRadius="4"/>
+                        <Border Height="20" VerticalAlignment="Top" Background="#5F8FCF" CornerRadius="2" Margin="0 0 4 0">
+                            <TextBlock Foreground="White" FontSize="10" Padding="3 4 3 2"
+                                       Visibility="{Binding MemberInfo, Converter={StaticResource ncc}}" Text="{Binding MemberInfo}"/>
+                        </Border>
+                        <Border Grid.Column="1" Height="20" VerticalAlignment="Top" Background="Orange" CornerRadius="2" Margin="-4 0 4 0">
+                            <TextBlock Foreground="White" FontSize="10" Padding="3 4 3 2"
+                                       Visibility="{Binding Price, Converter={StaticResource ncc}}" Text="{Binding Price}"/>
+                        </Border>
+                        <TextBlock Grid.Column="2" MaxWidth="60" TextTrimming="CharacterEllipsis" 
+                                   Foreground="{Binding IsMember, Converter={StaticResource lcmuncc}}" 
+                                   Height="18" Padding="0 3 2 0" VerticalAlignment="Top" Text="{Binding UserName}" ToolTip="{Binding UserName}"/>
+                        <TextBlock Grid.Column="3" Foreground="#EF2F2F2F" FontSize="16" FontWeight="Bold" 
+                                   TextWrapping="Wrap" Padding="3 0 3 0" Margin="4 0 0 0" Text="{Binding Content}"/>
+                    </Grid>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
 
         <!-- header rows container -->
         <Border Grid.Column="1" Grid.Row="1" Grid.RowSpan="2">
@@ -299,12 +336,19 @@
                     </StackPanel>
                 </Border>
 
-                <!-- row 5: none for now 
+                <!-- 5: statistics -->
                 <Border Grid.Row="4" BorderThickness="1 0 1 1" Style="{StaticResource OptionContainer}">
                     <StackPanel Orientation="Horizontal" Background="{StaticResource OptionBackground}">
+                        <CheckBox IsChecked="{Binding LockScroll}" VerticalAlignment="Center" Margin="8 0 0 0">Disable Auto Scroll</CheckBox>
+                        <TextBox Background="Transparent" BorderThickness="0" IsReadOnly="True" VerticalAlignment="Center" Margin="6 0 0 0" Text="{Binding ChatStatistics, Mode=OneWay}"/>
                     </StackPanel>
-                </Border>-->
+                </Border>
             </Grid>
         </Border>
+
+        <Rectangle Tag="left" Grid.RowSpan="7" Cursor="SizeWE" Fill="#01FFFFFF" Style="{StaticResource ResizeHandle}"/>
+        <Rectangle Tag="right" Grid.RowSpan="7" Grid.Column="2" Cursor="SizeWE" Fill="#01FFFFFF" Style="{StaticResource ResizeHandle}"/>
+        <Rectangle Tag="top" Grid.Column="1" Cursor="SizeNS" Fill="#01FFFFFF" Style="{StaticResource ResizeHandle}"/>
+        <Rectangle Tag="bottom" Grid.Column="1" Grid.Row="4" Cursor="SizeNS" Fill="#01FFFFFF" Style="{StaticResource ResizeHandle}"/>
     </Grid>
 </Window>

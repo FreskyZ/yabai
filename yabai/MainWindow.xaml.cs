@@ -1,8 +1,7 @@
-﻿using System;
+﻿using Microsoft.Win32;
+using System;
 using System.IO;
-using System.Linq;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -18,6 +17,7 @@ namespace yabai
         private readonly Logger logger;
         private readonly MainWindowViewModel state;
 
+        private readonly DispatcherTimer base_timer; // 1 min timer for log flush, record flush, live info refresh and possible stream url refresh
         private readonly LiveChatClient chat_client;
         public MainWindow()
         {
@@ -41,44 +41,35 @@ namespace yabai
             Application.Current.Exit += async (s, e) => { logger.Flush(); await chat_client.StopAsync(); };
 
             // fetch live info auto
-            refresh_timer = new DispatcherTimer();
-            refresh_timer.Interval = TimeSpan.FromMinutes(5);
-            refresh_timer.Tick += handleRefreshInfo;
-
-            message_record_timer = new DispatcherTimer();
-            message_record_timer.Interval = TimeSpan.FromMinutes(1);
-            message_record_timer.Tick += handleFlushMessageRecord;
-            message_record_timer.Start(); // this is simly always running and try to flush the stream writer
+            base_timer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
+            base_timer.Tick += handleBaseTimer;
+            base_timer.Start();
         }
 
-        private DispatcherTimer refresh_timer;
-        private async void handleRefreshInfo(object sender, EventArgs e)
+        private async void handleBaseTimer(object sender, EventArgs e)
         {
+            logger.Flush();
+            message_record?.Flush(); 
+
             var info = await LiveInfo.GetAsync(state.RoomId, logger);
             state.SetLiveInfo(info);
-            if (!info.Living)
+
+            if (info.Living && state.StreamURLExpire != DateTime.UnixEpoch && state.StreamURLExpire - DateTime.Now < TimeSpan.FromMinutes(10))
             {
-                refresh_timer.Stop();
+                state.SetStreamURLs(await LiveInfo.GetStreamURLAsync(info.RealId, logger));
             }
         }
-        private async void handleRefresh(object sender, RoutedEventArgs e)
+        private async void handleRefreshAll(object sender, RoutedEventArgs e)
         {
-            refresh_timer.Stop();
             await chat_client.StopAsync();
             var info = await LiveInfo.GetAsync(state.RoomId, logger);
 
             state.SetLiveInfo(info);
-            // chat_client.StartDemo(); return;
             state.SetStreamURLs(await LiveInfo.GetStreamURLAsync(info.RealId, logger));
             comboboxLines.SelectedIndex = 0;
 
             var (token, chat_urls) = await LiveInfo.GetChatInfoAsync(info.RealId, logger);
             await chat_client.StartAsync(info.RealId, chat_urls[0], token);
-
-            if (info.Living) 
-            { 
-                refresh_timer.Start(); 
-            }
 
             if (message_record != null)
             {
@@ -88,34 +79,67 @@ namespace yabai
             }
             if (info.Living)
             {
-                message_record = File.AppendText($"chat-{info.RoomId}-{info.StartTime:yyMMdd-HHmmss}.csv");
-                message_record.WriteLine("time,member,price,user,content");
+                var filename = $"chat-{info.RoomId}-{info.StartTime:yyMMdd-HHmmss}.csv";
+                var exists = File.Exists(filename);
+                message_record = File.AppendText(filename);
+                if (!exists)
+                {
+                    message_record.WriteLine("time,member,price,user,content");
+                }
             }
         }
 
+        private void handleSetMediaPlayer(object sender, RoutedEventArgs e)
+        {
+            var dialog = new OpenFileDialog { Filter = "Executable files (*.exe)|*.exe|All files (*.*)|*.*" };
+            if (dialog.ShowDialog() == true)
+            {
+                state.MediaPlayer = dialog.FileName;
+            }
+        }
         private void handleScrollChange(object sender, ScrollChangedEventArgs e)
         {
-            if (e.ExtentHeightChange > 0 && listboxchat.Items.Count > 0 && !state.LockScroll)
+            if (e.ExtentHeightChange > 0 && chatcontainer.Items.Count > 0 && state.AutoScroll)
             {
-                listboxchat.ScrollIntoView(listboxchat.Items[listboxchat.Items.Count - 1]);
+                chatcontainer.ScrollIntoView(chatcontainer.Items[chatcontainer.Items.Count - 1]);
             }
+
+            // normally displays at [vertical offset / extent height, (vertical offset + viewport height) / extent height] * container height
+            // min display height is 40px, if less, expand to 2 directions
+
+            var basic_top = e.VerticalOffset / e.ExtentHeight * chatcontainer.ActualHeight;
+            var basic_height = e.ViewportHeight / e.ExtentHeight * chatcontainer.ActualHeight;
+
+            if (basic_height < 40) // min height
+            {
+                var extend_height = (40 - basic_height) / 2;
+                basic_top -= extend_height;
+                basic_height = 40;
+            }
+            if (basic_top + basic_height > chatcontainer.ActualHeight) // min top
+            {
+                basic_top = chatcontainer.ActualHeight - basic_height - 2;
+            }
+            if (e.ExtentHeight == 0 || e.ViewportHeight >= e.ExtentHeight) // initial state
+            {
+                basic_top = 0;
+                basic_height = 0;
+            }
+
+            chatscrollbar.Margin = new Thickness(0, basic_top, 4, 0);
+            chatscrollbar.Height = basic_height;
         }
 
         private StreamWriter message_record;
-        private DispatcherTimer message_record_timer;
         private void handleMessageReceived(object sender, LiveChatMessage message)
         {
-            state.AddMessage(message);
+            Dispatcher.Invoke(() =>
+            {
+                state.AddMessage(message);
+            });
             if (message_record != null)
             {
-                message_record.WriteLine($"{message.Time:yyMMdd-HHmmss},{message.MemberInfo},{message.Price},{message.UserName},\"{message.Content}\"");
-            }
-        }
-        private void handleFlushMessageRecord(object sender, EventArgs e)
-        {
-            if (message_record != null)
-            {
-                message_record.Flush();
+                message_record.WriteLine($"{message.TimeStamp},{message.MemberInfo},{message.Price},{message.UserName},\"{message.Content}\"");
             }
         }
 
@@ -141,6 +165,8 @@ namespace yabai
         {
             m_IsMouseDownSizer = false;
             (sender as Rectangle).ReleaseMouseCapture();
+
+            Resources["ChatItemWidth"] = Width - 18;
         }
         private void handleResizeHandleMouseMove(object sender, MouseEventArgs e)
         {
@@ -194,4 +220,8 @@ namespace yabai
 }
 
 // TODO:
-// 3. log all messages to csv "time,user,content", try wordcloud, add replay csv
+// 3. getcursorpos unexpectedly on per monitor dpi, it seems like (x/dpi, y/dpi) is enough
+// 5. draggable virtual scroll bar
+// 7. room id history
+// 9. consider move refresh button from row 1 to row 2, auto reload all at app start
+// 10. move summary/statistics/insights python script into solution

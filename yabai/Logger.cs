@@ -1,6 +1,5 @@
 ﻿using System;
 using System.IO;
-using System.Timers;
 
 namespace yabai
 {
@@ -10,10 +9,6 @@ namespace yabai
         public Logger()
         {
             writer = new StreamWriter(File.OpenWrite("log.txt"));
-
-            var timer = new Timer(60_000); // flush every 1 min
-            timer.Elapsed += (s, e) => Flush();
-            timer.Start();
         }
 
         public void Log(string message)

@@ -63,37 +63,51 @@ namespace yabai
         public string RoomIdText { get => room_id.ToString(); set { room_id = int.Parse(value); Notify(); } }
 
         private string[] stream_urls = new string[0];
+        private DateTime stream_url_expire = DateTime.UnixEpoch;
         private string media_player = @"C:\Program Files\DAUM\PotPlayer\PotPlayerMini64.exe";
         public string[] StreamURLs => stream_urls;
+        public DateTime StreamURLExpire => stream_url_expire;
+        public string StreamURLExpireString => $"expires {stream_url_expire:HH\\:ss}";
         public string[] StreamURLNames => stream_urls.Select((_, index) => $"Line {index + 1}").ToArray();
         public bool StreamURLButtonEnabled => stream_urls.Length > 0;
         public string MediaPlayer { get => media_player; set { media_player = value; Notify(); } }
-        public void SetStreamURLs(string[] stream_urls)
+        public void SetStreamURLs((string[] urls, DateTime expire) u)
         {
-            this.stream_urls = stream_urls;
+            this.stream_urls = u.urls;
+            this.stream_url_expire = u.expire;
 
+            Notify(nameof(StreamURLExpireString));
             Notify(nameof(StreamURLNames));
             Notify(nameof(StreamURLButtonEnabled));
             Notify(nameof(MediaPlayer));
         }
 
         private ObservableCollection<LiveChatMessage> messages = new ObservableCollection<LiveChatMessage>();
-        private readonly Dictionary<string, int> word_count = new() { ["草"] = 0, ["哈"] = 0, ["？"] = 0 };
         public ObservableCollection<LiveChatMessage> Messages => messages;
-        public string ChatStatistics { get => $"count {Messages.Count}, {string.Join(", ", word_count.Select(kv => $"{kv.Key}: {kv.Value}"))}"; }
         public void AddMessage(LiveChatMessage message)
         {
             messages.Add(message);
-            if (message.Content.Contains("草")) { word_count["草"] += message.Content.Count(c => c == '草'); }
-            if (message.Content.Contains("哈")) { word_count["哈"] += message.Content.Count(c => c == '哈'); }
-            if (message.Content.Contains("？") || message.Content.Contains("?")) { word_count["？"] += message.Content.Count(c => c == '？' || c == '?'); }
-
             Notify(nameof(Messages));
-            Notify(nameof(ChatStatistics));
         }
 
-        private bool lock_scroll;
-        public bool LockScroll { get => lock_scroll; set { lock_scroll = value; Notify(nameof(LockScroll)); } }
+        private bool auto_scroll = true;
+        public bool AutoScroll { get => auto_scroll; set { auto_scroll = value; Notify(nameof(AutoScroll)); } }
+
+        private double fontsize = 16;
+        public double FontSize { get => fontsize; set { fontsize = value; Notify(nameof(FontSize)); } }
+
+        private byte background_alpha = 0x9F;
+        private SolidColorBrush background_brush = new SolidColorBrush(new Color { R = 0xCF, G = 0xCF, B = 0xCF, A = 0x9F });
+        public SolidColorBrush ChatBackgroundColor => background_brush; 
+        public byte ChatBackgroundAlpha
+        {
+            get => background_alpha;
+            set
+            {
+                background_alpha = value;
+                background_brush = new SolidColorBrush(new Color { R = 0xCF, G = 0xCF, B = 0xCF, A = value }); Notify(); Notify(nameof(ChatBackgroundColor));
+            }
+        }
 
         public event PropertyChangedEventHandler PropertyChanged;
         public void Notify([CallerMemberName] string propertyName = "")
@@ -129,16 +143,11 @@ namespace yabai
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture) => value == null ? Visibility.Collapsed : Visibility.Visible;
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => throw new NotSupportedException();
     }
-    public class MinusSomethingConverter : IValueConverter
+    public class MessageColorConverter : IValueConverter
     {
-        public object Convert(object value, Type targetType, object parameter, CultureInfo culture) => (double)value - double.Parse(parameter.ToString());
-        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => throw new NotSupportedException();
-    }
-    public class LiveChatMessageUserNameColorConverter : IValueConverter
-    {
-        private static readonly SolidColorBrush NormalColor = new SolidColorBrush(new Color { R = 0x60, G = 0x60, B = 0x60, A = 0xFF });
-        private static readonly SolidColorBrush MemberColor = new SolidColorBrush(new Color { R = 0x5F, G = 0x8F, B = 0xEF, A = 0xDF });
-        public object Convert(object value, Type targetType, object parameter, CultureInfo culture) => (bool)value ? MemberColor : NormalColor;
+        private static readonly SolidColorBrush NormalColor = new SolidColorBrush(new Color { R = 0x5F, G = 0x8F, B = 0xCF, A = 0xFF });
+        private static readonly SolidColorBrush SuperColor = new SolidColorBrush(Colors.Orange);
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture) => value != null ? SuperColor : NormalColor;
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => throw new NotSupportedException();
     }
 }

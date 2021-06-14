@@ -1,11 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Text.Json;
-using System.Net.Http;
-using System.Threading.Tasks;
-using System.Linq;
 using System.IO;
+using System.Linq;
+using System.Net.Http;
 using System.Text;
+using System.Text.Json;
+using System.Threading.Tasks;
+using System.Web;
 
 namespace yabai
 {
@@ -55,7 +56,7 @@ namespace yabai
                 info.RealId = data.prop("room_info").i32("room_id");
                 info.Living = data.prop("room_info").i32("live_status") == 1;
                 info.LiveTitle = data.prop("room_info").str("title");
-                info.StartTime = data.prop("room_info").time("live_start_time");
+                info.StartTime = data.prop("room_info").i64("live_start_time").ToDateTime();
                 info.LiverName = data.prop("anchor_info").prop("base_info").str("uname");
 
                 avatar_url = data.prop("anchor_info").prop("base_info").str("face");
@@ -81,7 +82,7 @@ namespace yabai
 
             return info;
         }
-        public static async Task<string[]> GetStreamURLAsync(int real_id, Logger logger)
+        public static async Task<(string[] urls, DateTime expire)> GetStreamURLAsync(int real_id, Logger logger)
         {
             using var query = new FormUrlEncodedContent(new Dictionary<string, string>
             {
@@ -111,8 +112,23 @@ namespace yabai
             try
             {
                 var document = await JsonDocument.ParseAsync(new MemoryStream(Encoding.UTF8.GetBytes(content)));
-                return document.RootElement.prop("data").prop("durl")
+                var urls = document.RootElement.prop("data").prop("durl")
                     .EnumerateArray().Select(durl => durl.str("url")).ToArray();
+                var expire = DateTime.UnixEpoch;
+
+                if (urls.Length > 0)
+                {
+                    var url = new UriBuilder(urls[0]);
+                    var parameters = HttpUtility.ParseQueryString(url.Query);
+                    if (parameters.AllKeys.Contains("expires"))
+                    {
+                        if (long.TryParse(parameters["expires"], out var expireNumber))
+                        {
+                            expire = expireNumber.ToDateTime();
+                        }
+                    }
+                }
+                return (urls, expire);
             }
             catch (Exception e) when (e is JsonException
                 || e is InvalidOperationException || e is KeyNotFoundException || e is IndexOutOfRangeException)

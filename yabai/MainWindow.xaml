@@ -4,16 +4,16 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:yabai"
+        xmlns:sys="clr-namespace:System;assembly=mscorlib"
         mc:Ignorable="d"
         Title="{Binding ApplicationTitle}"
         WindowStyle="None" ResizeMode="NoResize" 
         Background="Transparent" AllowsTransparency="True" Topmost="True"
-        Height="520" Width="320" MinWidth="300" Icon="{Binding Icon}">
+        Height="520" MinHeight="100" Width="360" MinWidth="300" Icon="{Binding Icon}">
     <Window.Resources>
         <local:MainWindowViewModel x:Key="viewmodel" />
         <local:NullCollapseConverter x:Key="ncc"/>
-        <local:MinusSomethingConverter x:Key="msc"/>
-        <local:LiveChatMessageUserNameColorConverter x:Key="lcmuncc"/>
+        <local:MessageColorConverter x:Key="mcc"/>
 
         <SolidColorBrush x:Key="BackgroundColor">#AFFFFFFF</SolidColorBrush>
         <SolidColorBrush x:Key="OptionBackground">#C0FFFFFF</SolidColorBrush>
@@ -63,7 +63,7 @@
                     <Setter Property="Fill" Value="Orange"/>
                 </DataTrigger>
                 <DataTrigger Binding="{Binding DataContext.ChatState, RelativeSource={RelativeSource AncestorType=Window}}" Value="ERROR">
-                    <Setter Property="Fill" Value="RED"/>
+                    <Setter Property="Fill" Value="Red"/>
                 </DataTrigger>
             </Style.Triggers>
         </Style>
@@ -71,8 +71,8 @@
         <Style x:Key="OptionsButton" TargetType="Button">
             <Setter Property="Width" Value="32" />
             <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Foreground" Value="#5F5F5F"/>
-            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#01FFFFFF"/>
+            <Setter Property="Background" Value="#01FFFFFF"/>
             <Setter Property="LayoutTransform">
                 <Setter.Value>
                     <RotateTransform Angle="180"/>
@@ -81,23 +81,23 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="4">
                             <Path Width="96" Height="96" 
                                   Fill="{TemplateBinding Foreground}"
                                   Data="M 48 32 L 20 60 L 76 60 Z">
                                 <Path.LayoutTransform>
-                                    <ScaleTransform ScaleX="-0.25" ScaleY="0.25" />
+                                    <ScaleTransform ScaleX="-0.25" ScaleY="0.2" />
                                 </Path.LayoutTransform>
                             </Path>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter Property="Foreground" Value="White"/>
-                                <Setter Property="Background" Value="#8F6F6F6F"/>
+                                <Setter Property="Background" Value="#6F6F6F6F"/>
                             </Trigger>
                             <Trigger Property="IsKeyboardFocused" Value="True">
                                 <Setter Property="Foreground" Value="White"/>
-                                <Setter Property="Background" Value="#8F6F6F6F"/>
+                                <Setter Property="Background" Value="#6F6F6F6F"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -195,64 +195,73 @@
             </Style.Triggers>
         </Style>
 
+        <sys:Double x:Key="ChatItemWidth">342</sys:Double>
+
     </Window.Resources>
     <Window.DataContext>
         <Binding Source="{StaticResource viewmodel}"/>
     </Window.DataContext>
     <Grid>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="6"/> <!-- left shadow and left resize handle -->
+            <ColumnDefinition Width="8"/> <!-- left shadow and left resize handle -->
             <ColumnDefinition/>
-            <ColumnDefinition Width="6"/> <!-- right shadow and right resize handle -->
+            <ColumnDefinition Width="8"/> <!-- right shadow and right resize handle -->
         </Grid.ColumnDefinitions>
         <Grid.RowDefinitions>
-            <RowDefinition Height="6"/> <!-- top shadow and top resize handle -->
+            <RowDefinition Height="8"/> <!-- top shadow and top resize handle -->
             <RowDefinition Height="32"/> <!-- chat panel is displayed after row 1 with additional margin -->
             <RowDefinition Height="106"/> <!-- header row rest part -->
             <RowDefinition />
-            <RowDefinition Height="6"/> <!-- bottom resize handle -->
+            <RowDefinition Height="4"/> <!-- bottom indicator -->
+            <RowDefinition Height="8"/> <!-- bottom resize handle -->
         </Grid.RowDefinitions>
 
         <!-- chat message panel -->
-        <ListBox x:Name="listboxchat" Grid.Row="2" Grid.RowSpan="2" Grid.Column="1"
-                 Background="#01FFFFFF" BorderThickness="0" ItemsSource="{Binding Messages}" 
+        <ListBox x:Name="chatcontainer" Grid.Row="2" Grid.RowSpan="2" Grid.Column="1"
+                 Background="Transparent" BorderThickness="0" ItemsSource="{Binding Messages}"
                  HorizontalContentAlignment="Stretch"
                  ScrollViewer.ScrollChanged="handleScrollChange"
-                 ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Hidden">
+                 ScrollViewer.HorizontalScrollBarVisibility="Hidden" 
+                 ScrollViewer.VerticalScrollBarVisibility="Hidden">
             <ListBox.ItemContainerStyle>
                 <Style TargetType="ListBoxItem">
-                    <Setter Property="IsHitTestVisible" Value="False"/>
-                    <Setter Property="Margin" Value="0"/>
-                    <Setter Property="Padding" Value="0"/>
+                    <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="ListBoxItem">
+                                <ContentPresenter/>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
                 </Style>
             </ListBox.ItemContainerStyle>
             <ListBox.ItemTemplate>
                 <DataTemplate DataType="{x:Type local:LiveChatMessage}">
-                    <Grid Width="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=ListBox}, Converter={StaticResource msc}, ConverterParameter=4}">
+                    <Grid Width="{DynamicResource ChatItemWidth}">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="auto" />
-                            <ColumnDefinition Width="auto" />
-                            <ColumnDefinition Width="auto" />
-                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="4" />
+                            <ColumnDefinition Width="1*"/>
                         </Grid.ColumnDefinitions>
-                        <Border Grid.ColumnSpan="4" Background="#9FCFCFCF" CornerRadius="4"/>
-                        <Border Height="20" VerticalAlignment="Top" Background="#5F8FCF" CornerRadius="2" Margin="0 0 4 0">
-                            <TextBlock Foreground="White" FontSize="10" Padding="3 4 3 2"
-                                       Visibility="{Binding MemberInfo, Converter={StaticResource ncc}}" Text="{Binding MemberInfo}"/>
-                        </Border>
-                        <Border Grid.Column="1" Height="20" VerticalAlignment="Top" Background="Orange" CornerRadius="2" Margin="-4 0 4 0">
-                            <TextBlock Foreground="White" FontSize="10" Padding="3 4 3 2"
-                                       Visibility="{Binding Price, Converter={StaticResource ncc}}" Text="{Binding Price}"/>
-                        </Border>
-                        <TextBlock Grid.Column="2" MaxWidth="60" TextTrimming="CharacterEllipsis" 
-                                   Foreground="{Binding IsMember, Converter={StaticResource lcmuncc}}" 
-                                   Height="18" Padding="0 3 2 0" VerticalAlignment="Top" Text="{Binding UserName}" ToolTip="{Binding UserName}"/>
-                        <TextBlock Grid.Column="3" Foreground="#EF2F2F2F" FontSize="16" FontWeight="Bold" 
-                                   TextWrapping="Wrap" Padding="3 0 3 0" Margin="4 0 0 0" Text="{Binding Content}"/>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="auto" />
+                            <RowDefinition Height="1" />
+                        </Grid.RowDefinitions>
+                        <Border Grid.Column="0" Background="{Binding Price, Converter={StaticResource mcc}}" CornerRadius="2 0 0 2"/>
+                        <Border Grid.Column="1" Background="{Binding DataContext.ChatBackgroundColor, RelativeSource={RelativeSource AncestorType=Window}}" CornerRadius="0 2 2 0"/>
+                        <Rectangle Grid.Row="1" Grid.ColumnSpan="2" Fill="#01FFFFFF"/>
+                        <TextBlock Grid.ColumnSpan="2" TextWrapping="Wrap" Padding="6 0" MouseDown="handleDragMove">
+                            <Run FontSize="12" Foreground="#FF606060" Text="{Binding UserName}"/>
+                            <Run FontSize="{Binding DataContext.FontSize, RelativeSource={RelativeSource AncestorType=Window}}" Foreground="#EF2F2F2F" FontWeight="Bold" Text="{Binding Content}" />
+                        </TextBlock>
                     </Grid>
                 </DataTemplate>
             </ListBox.ItemTemplate>
         </ListBox>
+        
+        <!-- scrollbar -->
+        <Border x:Name="chatscrollbar" Grid.Column="1" Grid.Row="2" Grid.RowSpan="2" 
+                Background="#9F7F7F7F" Width="4" CornerRadius="2" Height="0" Margin="0 0 4 0"
+                HorizontalAlignment="Right" VerticalAlignment="Top"/>
 
         <!-- header rows container -->
         <Border Grid.Column="1" Grid.Row="1" Grid.RowSpan="2">
@@ -264,17 +273,16 @@
                     <RowDefinition Height="30"/>
                     <RowDefinition Height="28"/>
                     <RowDefinition Height="28"/>
-                    <RowDefinition Height="24"/>
                     <RowDefinition Height="28"/>
                 </Grid.RowDefinitions>
 
-                <!-- row 1: avatar, title, state, toggle options, close -->
+                <!-- row 1: avatar, title, state, close -->
                 <Border BorderThickness="1" BorderBrush="{StaticResource BorderColor}">
                     <Grid Background="{StaticResource BackgroundColor}">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="{Binding LiveChatIconWidth}"/>
                             <ColumnDefinition/>
-                            <ColumnDefinition Width="96" />
+                            <ColumnDefinition Width="64" />
                         </Grid.ColumnDefinitions>
 
                         <StackPanel Background="#01FFFFFF" Orientation="Horizontal" Margin="6 0 0 0" MouseDown="handleDragMove">
@@ -305,13 +313,12 @@
 
                         <StackPanel Orientation="Horizontal" FlowDirection="RightToLeft" Grid.Column="2">
                             <Button x:Name="buttonClose" Style="{StaticResource CloseButton}" />
-                            <Button x:Name="buttonOptions" Style="{StaticResource OptionsButton}"/>
-                            <Button Click="handleRefresh" Style="{StaticResource RefreshButton}"/>
+                            <Button Click="handleRefreshAll" Style="{StaticResource RefreshButton}"/>
                         </StackPanel>
                     </Grid>
                 </Border>
 
-                <!-- row 2: room id, refresh -->
+                <!-- row 2: room id -->
                 <Border Grid.Row="1" BorderThickness="1 0 1 1" Style="{StaticResource OptionContainer}">
                     <StackPanel Orientation="Horizontal" Background="{StaticResource OptionBackground}">
                         <TextBlock VerticalAlignment="Center" Margin="8 0 0 0">Room Id</TextBlock>
@@ -320,35 +327,55 @@
                     </StackPanel>
                 </Border>
 
-                <!-- row 3: line list, row 4: line opener -->
-                <Border Grid.Row="2" BorderThickness="1 0 1 0" Style="{StaticResource OptionContainer}">
+                <!-- row 3: lines -->
+                <Border Grid.Row="2" BorderThickness="1 0 1 1" Style="{StaticResource OptionContainer}">
                     <StackPanel Orientation="Horizontal" Background="{StaticResource OptionBackground}">
-                        <TextBlock VerticalAlignment="Center" Margin="8 2 0 0">Lines</TextBlock>
-                        <ComboBox x:Name="comboboxLines" Height="20" Width="80" Margin="8 3 0 0" ItemsSource="{Binding StreamURLNames}" />
-                        <Button x:Name="buttonCopyLine" Height="20" Margin="12 3 0 0" Padding="8 2 8 0" FontSize="10" IsEnabled="{Binding StreamURLButtonEnabled}">COPY</Button>
-                        <Button x:Name="buttonOpenLine" Height="20" Margin="12 3 0 0" Padding="8 2 8 0" FontSize="10" IsEnabled="{Binding StreamURLButtonEnabled}">OPEN</Button>
-                    </StackPanel>
-                </Border>
-                <Border Grid.Row="3" BorderThickness="1 0 1 1" Style="{StaticResource OptionContainer}">
-                    <StackPanel Orientation="Horizontal" Background="{StaticResource OptionBackground}">
-                        <TextBlock  Margin="8 4 0 0">Media Player</TextBlock>
-                        <TextBox VerticalAlignment="Top" Width="180" Margin="8 4 0 0" FontSize="10" Text="{Binding MediaPlayer, Mode=TwoWay}"/>
+                        <TextBlock VerticalAlignment="Center" Margin="8 0 0 0">Lines</TextBlock>
+                        <ComboBox x:Name="comboboxLines" Height="20" Width="80" Margin="8 0 0 0" ItemsSource="{Binding StreamURLNames}" />
+                        <Button x:Name="buttonCopyLine" Height="20" Margin="8 0 0 0" Padding="8 2 8 0" FontSize="10" 
+                                IsEnabled="{Binding StreamURLButtonEnabled}" ToolTip="{Binding StreamURLExpireString}">COPY</Button>
+                        <Button x:Name="buttonOpenLine" Height="20" Margin="8 0 0 0" Padding="8 2 8 0" FontSize="10" 
+                                IsEnabled="{Binding StreamURLButtonEnabled}" ToolTip="{Binding StreamURLExpireString}">OPEN</Button>
+                        <Button Height="20" Margin="8 0 0 0" Padding="8 2 8 0" FontSize="10"
+                                ToolTip="{Binding MediaPlayer, Mode=OneWay}" Click="handleSetMediaPlayer">WITH</Button>
                     </StackPanel>
                 </Border>
 
-                <!-- 5: statistics -->
+                <!-- 4: auto scroll, font size, background alpha -->
                 <Border Grid.Row="4" BorderThickness="1 0 1 1" Style="{StaticResource OptionContainer}">
                     <StackPanel Orientation="Horizontal" Background="{StaticResource OptionBackground}">
-                        <CheckBox IsChecked="{Binding LockScroll}" VerticalAlignment="Center" Margin="8 0 0 0">Disable Auto Scroll</CheckBox>
-                        <TextBox Background="Transparent" BorderThickness="0" IsReadOnly="True" VerticalAlignment="Center" Margin="6 0 0 0" Text="{Binding ChatStatistics, Mode=OneWay}"/>
+                        <CheckBox IsChecked="{Binding AutoScroll}" VerticalAlignment="Center" Margin="8 0 0 0">Scroll</CheckBox>
+                        <TextBlock VerticalAlignment="Center" Margin="8 0 0 0">Size</TextBlock>
+                        <Slider VerticalAlignment="Center" Margin="8 0 0 0" Width="80" Delay="1500"
+                                Minimum="10" Maximum="30" AutoToolTipPlacement="TopLeft" Value="{Binding FontSize}"/>
+                        <TextBlock VerticalAlignment="Center" Margin="8 0 0 0">Alpha</TextBlock>
+                        <Slider VerticalAlignment="Center" Margin="8 0 0 0" Width="80" Delay="1500"
+                                Minimum="0" Maximum="255" AutoToolTipPlacement="TopLeft" Value="{Binding ChatBackgroundAlpha}"/>
                     </StackPanel>
                 </Border>
             </Grid>
         </Border>
 
-        <Rectangle Tag="left" Grid.RowSpan="7" Cursor="SizeWE" Fill="#01FFFFFF" Style="{StaticResource ResizeHandle}"/>
-        <Rectangle Tag="right" Grid.RowSpan="7" Grid.Column="2" Cursor="SizeWE" Fill="#01FFFFFF" Style="{StaticResource ResizeHandle}"/>
+        <!-- auto hide expand options -->
+        <Button x:Name="buttonOptions" Grid.Column="1" Grid.Row="1" Grid.RowSpan="2" 
+                Margin="0 20 0 0" VerticalAlignment="Top"
+                Style="{StaticResource OptionsButton}"/>
+
+        <!-- bottom indicator -->
+        <Border Grid.Column="1" Grid.Row="4" BorderBrush="#4F9F9F9F" BorderThickness="2">
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="12" Color="#3F3F3F" Opacity="0.3" ShadowDepth="1"/>
+            </Border.Effect>
+        </Border>
+
+        <Rectangle Tag="left" Grid.Row="1" Grid.RowSpan="4" Cursor="SizeWE" Fill="#01FFFFFF" Style="{StaticResource ResizeHandle}"/>
+        <Rectangle Tag="right" Grid.Row="1" Grid.RowSpan="4" Grid.Column="2" Cursor="SizeWE" Fill="#01FFFFFF" Style="{StaticResource ResizeHandle}"/>
         <Rectangle Tag="top" Grid.Column="1" Cursor="SizeNS" Fill="#01FFFFFF" Style="{StaticResource ResizeHandle}"/>
-        <Rectangle Tag="bottom" Grid.Column="1" Grid.Row="4" Cursor="SizeNS" Fill="#01FFFFFF" Style="{StaticResource ResizeHandle}"/>
+        <Rectangle Tag="bottom" Grid.Column="1" Grid.Row="5" Cursor="SizeNS" Fill="#01FFFFFF" Style="{StaticResource ResizeHandle}"/>
+        
+        <Rectangle Tag="lefttop" Cursor="SizeNWSE" Fill="#01FFFFFF" Style="{StaticResource ResizeHandle}"/>
+        <Rectangle Tag="righttop" Grid.Column="2" Cursor="SizeNESW" Fill="#01FFFFFF" Style="{StaticResource ResizeHandle}"/>
+        <Rectangle Tag="rightbottom" Grid.Column="2" Grid.Row="5" Cursor="SizeNWSE" Fill="#01FFFFFF" Style="{StaticResource ResizeHandle}"/>
+        <Rectangle Tag="leftbottom" Grid.Row="5" Cursor="SizeNESW" Fill="#01FFFFFF" Style="{StaticResource ResizeHandle}"/>
     </Grid>
 </Window>

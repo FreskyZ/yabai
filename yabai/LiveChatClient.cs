@@ -12,7 +12,7 @@ namespace yabai
 {
     public struct LiveChatMessage
     {
-        public DateTime Time { get; set; }
+        public long TimeStamp { get; init; }
         public string Price { get; init; } // not null for super chat
         public bool IsMember { get; init; } // is member in current room
         public string MemberInfo { get; init; } // selected displayed member and level
@@ -84,7 +84,7 @@ namespace yabai
                     var info = message.prop("info");
                     MessageReceived?.Invoke(this, new LiveChatMessage
                     {
-                        Time = info[9].time("ts"),
+                        TimeStamp = info[9].i64("ts"),
                         Price = null,
                         IsMember = info[2][2].i32() != 0 || !string.IsNullOrWhiteSpace(info[2][7].str()),
                         MemberInfo = info[3].len() > 0 ? $"{info[3][1].str()}{info[3][0].i32()}" : null,
@@ -97,7 +97,7 @@ namespace yabai
                     var data = message.prop("data");
                     MessageReceived?.Invoke(this, new LiveChatMessage
                     {
-                        Time = data.time("ts"),
+                        TimeStamp = data.i64("ts"),
                         Price = $"\uFFE5{data.i32("price")}",
                         IsMember = data.TryGetProperty("medal_info", out var medal_info)
                             && medal_info.TryGetProperty("guard_level", out var guard_level)
@@ -209,7 +209,7 @@ namespace yabai
             if (websocket?.State == WebSocketState.Open)
             {
                 heartbeat_source.Cancel();
-                var timeout = new CancellationTokenSource(1_000); // 5 seconds
+                var timeout = new CancellationTokenSource(1_000); // 1 second
 
                 try
                 {
@@ -229,44 +229,34 @@ namespace yabai
                 websocket.Dispose();
                 websocket = null;
             }
+
+            timer?.Dispose();
         }
 
+        private Timer timer;
         public void StartDemo()
         {
-            MessageReceived?.Invoke(this, new LiveChatMessage
+            var index = 0;
+            var lines = File.ReadAllLines(@"chat-92613-210613-194027.csv");
+            timer = new Timer(s =>
             {
-                Time = DateTime.Now,
-                IsMember = false,
-                MemberInfo = "单腿人11",
-                UserName = "用户名",
-                Content = "弹幕消息11",
-            });
-            MessageReceived?.Invoke(this, new LiveChatMessage
-            {
-                Time = DateTime.Now,
-                IsMember = true,
-                Price = "\uffe530",
-                MemberInfo = "单腿人21",
-                UserName = "用户名2",
-                Content = "弹幕消息12HENCHANGHENCHANGHENCHANGHENCHANGHENCHANG",
-            });
-            MessageReceived?.Invoke(this, new LiveChatMessage
-            {
-                Time = DateTime.Now,
-                Price = "\uffe530",
-                IsMember = false,
-                MemberInfo = null,
-                UserName = "user name 3",
-                Content = "chat message 13",
-            });
-            MessageReceived?.Invoke(this, new LiveChatMessage
-            {
-                Time = DateTime.Now,
-                IsMember = true,
-                MemberInfo = null,
-                UserName = "ユーザー名 ",
-                Content = "ここすき１６长长长长 长长长长 长长长长长长长长 长长 长长 长长长长长长长长长长",
-            });
+                foreach (var _ in Enumerable.Range(0, 10))
+                {
+                    if (index < lines.Length)
+                    {
+                        var message = lines[index].Split(',');
+                        var username = message[3];
+                        var content = message[4].Trim('"');
+                        MessageReceived?.Invoke(this, new LiveChatMessage
+                        {
+                            TimeStamp = 0,
+                            UserName = username,
+                            Content = content,
+                        });
+                        index += 1;
+                    }
+                }
+            }, null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
         }
     }
 
@@ -275,10 +265,12 @@ namespace yabai
         public static JsonElement prop(this JsonElement self, string propertyName) => self.GetProperty(propertyName);
         public static int len(this JsonElement self) => self.GetArrayLength();
         public static int i32(this JsonElement self) => self.GetInt32();
+        public static long i64(this JsonElement self) => self.GetInt64();
         public static string str(this JsonElement self) => self.GetString();
-        public static DateTime time(this JsonElement self) => DateTime.UnixEpoch.AddTicks(self.GetInt64() * TimeSpan.TicksPerSecond).ToLocalTime();
         public static int i32(this JsonElement self, string propertyName) => self.GetProperty(propertyName).GetInt32();
+        public static long i64(this JsonElement self, string propertyName) => self.GetProperty(propertyName).GetInt64();
         public static string str(this JsonElement self, string propertyName) => self.GetProperty(propertyName).GetString();
-        public static DateTime time(this JsonElement self, string propertyName) => DateTime.UnixEpoch.AddTicks(self.GetProperty(propertyName).GetInt64() * TimeSpan.TicksPerSecond).ToLocalTime();
+
+        public static DateTime ToDateTime(this long self) => DateTime.UnixEpoch.AddTicks(self * TimeSpan.TicksPerSecond).ToLocalTime();
     }
 }

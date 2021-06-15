@@ -35,6 +35,7 @@ namespace yabai
             buttonCopyLine.Click += (s, e) => Clipboard.SetData(DataFormats.Text, state.StreamURLs[comboboxLines.SelectedIndex]);
             buttonOpenLine.Click += (s, e) => System.Diagnostics.Process.Start(state.MediaPlayer, $"\"{state.StreamURLs[comboboxLines.SelectedIndex]}\"");
             rectangleLiveStateTooltipProvider.ToolTipOpening += (s, e) => rectangleLiveStateTooltipProvider.ToolTip = state.LiveStateTooltip;
+            headercontainer.MouseLeave += (s, e) => state.HideOptions();
 
             // close
             buttonClose.Click += async (s, e) => { logger.Flush(); Cursor = Cursors.Wait; await chat_client.StopAsync(); Close(); };
@@ -61,6 +62,7 @@ namespace yabai
         }
         private async void handleRefreshAll(object sender, RoutedEventArgs e)
         {
+            // chat_client.StartDemo(); return;
             await chat_client.StopAsync();
             var info = await LiveInfo.GetAsync(state.RoomId, logger);
 
@@ -116,9 +118,9 @@ namespace yabai
                 basic_top -= extend_height;
                 basic_height = 40;
             }
-            if (basic_top + basic_height > chatcontainer.ActualHeight) // min top
+            if (basic_top + basic_height > chatcontainer.ActualHeight - 4) // min top
             {
-                basic_top = chatcontainer.ActualHeight - basic_height - 2;
+                basic_top = chatcontainer.ActualHeight - basic_height - 4;
             }
             if (e.ExtentHeight == 0 || e.ViewportHeight >= e.ExtentHeight) // initial state
             {
@@ -223,5 +225,4 @@ namespace yabai
 // 3. getcursorpos unexpectedly on per monitor dpi, it seems like (x/dpi, y/dpi) is enough
 // 5. draggable virtual scroll bar
 // 7. room id history
-// 9. consider move refresh button from row 1 to row 2, auto reload all at app start
 // 10. move summary/statistics/insights python script into solution

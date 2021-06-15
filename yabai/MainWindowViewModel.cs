@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
@@ -13,6 +12,24 @@ using System.Windows.Media.Imaging;
 
 namespace yabai
 {
+    public class DisplayChatMessage : INotifyPropertyChanged
+    {
+        public string Price { get; set; }
+        public string UserName { get; set; }
+        public string Content { get; set; }
+        public long TimeStamp { get; set; }
+
+        private int count = 1;
+        public int Count { get => count; set { count = value; Notify(nameof(CountString)); } }
+        public string CountString => count > 1 ? $"×{count}" : "";
+        
+        public event PropertyChangedEventHandler PropertyChanged;
+        public void Notify([CallerMemberName] string propertyName = "")
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
+    }
+
     public class MainWindowViewModel : INotifyPropertyChanged
     {
         private LiveInfo info;
@@ -52,6 +69,11 @@ namespace yabai
 
         private bool options_visible;
         public bool OptionsVisible => options_visible;
+        public void HideOptions()
+        {
+            options_visible = false;
+            Notify(nameof(OptionsVisible));
+        }
         public void ToggleOptionsVisible()
         {
             options_visible = !options_visible;
@@ -82,11 +104,47 @@ namespace yabai
             Notify(nameof(MediaPlayer));
         }
 
-        private ObservableCollection<LiveChatMessage> messages = new ObservableCollection<LiveChatMessage>();
-        public ObservableCollection<LiveChatMessage> Messages => messages;
+        private ObservableCollection<DisplayChatMessage> messages = new ObservableCollection<DisplayChatMessage>();
+        public ObservableCollection<DisplayChatMessage> Messages => messages;
         public void AddMessage(LiveChatMessage message)
         {
-            messages.Add(message);
+            // check self repeated [1, 4] characters
+            var display = new DisplayChatMessage
+            {
+                Price = message.Price,
+                UserName = message.UserName,
+                Content = message.Content,
+                TimeStamp = message.TimeStamp,
+            };
+
+            if (display.Content.Length > 1)
+            {
+                foreach (var sequence_length in Enumerable.Range(1, 4))
+                {
+                    if (display.Content.Length % sequence_length == 0)
+                    {
+                        var sequence = display.Content[0..sequence_length];
+                        if (display.Content == string.Concat(Enumerable.Repeat(sequence, display.Content.Length / sequence_length)))
+                        {
+                            display.Content = sequence;
+                            display.Count = display.Content.Length / sequence_length;
+                        }
+                    }
+                }
+            }
+            
+            // check duplicate with previous 15 messages
+            foreach (var previous in messages.Reverse().Take(15))
+            {
+                if (StringComparer.CurrentCultureIgnoreCase.Equals(display.Content, previous.Content))
+                {
+                    previous.Count += display.Count;
+                    Notify(nameof(Messages));
+                    return;
+                }
+            }
+
+            messages.Add(display);
             Notify(nameof(Messages));
         }
 

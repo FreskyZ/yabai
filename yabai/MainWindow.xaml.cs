@@ -1,9 +1,11 @@
 ﻿using Microsoft.Win32;
 using System;
 using System.IO;
+using System.Linq;
 using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Shapes;
 using System.Windows.Threading;
@@ -15,6 +17,7 @@ namespace yabai
         private static readonly Regex s_number = new(@"^\d+$");
 
         private readonly Logger logger;
+        private readonly Setting setting;
         private readonly MainWindowViewModel state;
 
         private readonly DispatcherTimer base_timer; // 1 min timer for log flush, record flush, live info refresh and possible stream url refresh
@@ -22,7 +25,16 @@ namespace yabai
         public MainWindow()
         {
             InitializeComponent();
+
+            setting = Setting.Load();
+            Left = setting.WindowLeft;
+            Top = setting.WindowTop;
+            Width = Math.Max(MinWidth, setting.WindowWidth);
+            Height = Math.Max(MinHeight, setting.WindowHeight);
+
             state = DataContext as MainWindowViewModel;
+            state.SetSetting(setting);
+            state.ChatContainerView = CollectionViewSource.GetDefaultView(chatcontainer.ItemsSource) as CollectionView;
 
             logger = new Logger();
             chat_client = new LiveChatClient(logger);
@@ -31,15 +43,15 @@ namespace yabai
 
             // small event handlers
             textboxRoomId.PreviewTextInput += (s, e) => e.Handled = !s_number.IsMatch(e.Text);
-            buttonOptions.Click += (s, e) => state.ToggleOptionsVisible();
+            buttonOptions.MouseEnter += (s, e) => state.OptionsVisible = true;
+            headercontainer.MouseLeave += (s, e) => state.OptionsVisible = false;
             buttonCopyLine.Click += (s, e) => Clipboard.SetData(DataFormats.Text, state.StreamURLs[comboboxLines.SelectedIndex]);
             buttonOpenLine.Click += (s, e) => System.Diagnostics.Process.Start(state.MediaPlayer, $"\"{state.StreamURLs[comboboxLines.SelectedIndex]}\"");
             rectangleLiveStateTooltipProvider.ToolTipOpening += (s, e) => rectangleLiveStateTooltipProvider.ToolTip = state.LiveStateTooltip;
-            headercontainer.MouseLeave += (s, e) => state.HideOptions();
 
             // close
             buttonClose.Click += async (s, e) => { logger.Flush(); Cursor = Cursors.Wait; await chat_client.StopAsync(); Close(); };
-            Application.Current.Exit += async (s, e) => { logger.Flush(); await chat_client.StopAsync(); };
+            Application.Current.Exit += async (s, e) => { logger.Flush(); message_record?.Flush(); setting.Save(this); await chat_client.StopAsync(); };
 
             // fetch live info auto
             base_timer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
@@ -55,10 +67,22 @@ namespace yabai
             var info = await LiveInfo.GetAsync(state.RoomId, logger);
             state.SetLiveInfo(info);
 
+            var history_entry = state.RoomHistories.FirstOrDefault(h => h.RoomId == info.RoomId);
+            if (history_entry.LastTitle != null)
+            {
+                // you cannot update inplace because it is a struct while findIndex is not available
+                state.RoomHistories.Remove(history_entry);
+            }
+            state.RoomHistories.Add(new RoomHistory { RoomId = info.RoomId, LastTitle = info.LiveTitle });
+            state.RoomHistories = state.RoomHistories; // notify
+            setting.RoomHistories = state.RoomHistories.ToArray();
+
             if (info.Living && state.StreamURLExpire != DateTime.UnixEpoch && state.StreamURLExpire - DateTime.Now < TimeSpan.FromMinutes(10))
             {
                 state.SetStreamURLs(await LiveInfo.GetStreamURLAsync(info.RealId, logger));
             }
+
+            setting.Save(this);
         }
         private async void handleRefreshAll(object sender, RoutedEventArgs e)
         {
@@ -99,6 +123,22 @@ namespace yabai
                 state.MediaPlayer = dialog.FileName;
             }
         }
+        private void handleSelectHistoryRoomId(object sender, SelectionChangedEventArgs e)
+        {
+            if (comboboxRoomIds.SelectedIndex != -1)
+            {
+                state.RoomId = state.RoomHistories[comboboxRoomIds.SelectedIndex].RoomId;
+            }
+        }
+        private void handleRoomHistoryKeydown(object sender, KeyEventArgs e)
+        {
+            if (comboboxRoomIds.SelectedIndex != -1 && e.Key == Key.Delete)
+            {
+                state.RoomHistories.RemoveAt(comboboxRoomIds.SelectedIndex);
+                setting.RoomHistories = state.RoomHistories.ToArray();
+            }
+        }
+
         private void handleScrollChange(object sender, ScrollChangedEventArgs e)
         {
             if (e.ExtentHeightChange > 0 && chatcontainer.Items.Count > 0 && state.AutoScroll)
@@ -112,11 +152,11 @@ namespace yabai
             var basic_top = e.VerticalOffset / e.ExtentHeight * chatcontainer.ActualHeight;
             var basic_height = e.ViewportHeight / e.ExtentHeight * chatcontainer.ActualHeight;
 
-            if (basic_height < 40) // min height
+            if (basic_height < 30) // min height
             {
-                var extend_height = (40 - basic_height) / 2;
+                var extend_height = (30 - basic_height) / 2;
                 basic_top -= extend_height;
-                basic_height = 40;
+                basic_height = 30;
             }
             if (basic_top + basic_height > chatcontainer.ActualHeight - 4) // min top
             {
@@ -216,7 +256,10 @@ namespace yabai
         }
         private void handleDragMove(object sender, MouseEventArgs e)
         {
-            DragMove();
+            if (e.LeftButton == MouseButtonState.Pressed && e.RightButton == MouseButtonState.Released)
+            {
+                DragMove();
+            }
         }
     }
 }

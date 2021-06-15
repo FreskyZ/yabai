@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
@@ -32,6 +33,23 @@ namespace yabai
 
     public class MainWindowViewModel : INotifyPropertyChanged
     {
+        private Setting setting;
+        internal void SetSetting(Setting setting)
+        {
+            this.setting = setting;
+
+            this.fontsize = setting.FontSize;
+            this.background_brush = CreateSolidColorBrush(setting.BackgroundAlpha);
+            this.room_id = setting.RoomId;
+            this.room_histories = new ObservableCollection<RoomHistory>(setting.RoomHistories);
+
+            Notify(nameof(FontSize));
+            Notify(nameof(ChatBackgroundAlpha));
+            Notify(nameof(ChatBackgroundColor));
+            Notify(nameof(RoomIdText));
+            Notify(nameof(RoomHistories));
+        }
+
         private LiveInfo info;
         private ImageSource icon;
         public ImageSource Icon { get => icon; }
@@ -68,21 +86,13 @@ namespace yabai
         }
 
         private bool options_visible;
-        public bool OptionsVisible => options_visible;
-        public void HideOptions()
-        {
-            options_visible = false;
-            Notify(nameof(OptionsVisible));
-        }
-        public void ToggleOptionsVisible()
-        {
-            options_visible = !options_visible;
-            Notify(nameof(OptionsVisible));
-        }
+        public bool OptionsVisible { get => options_visible; set { options_visible = value; Notify(); } }
 
         private int room_id = 92613;
-        public int RoomId => room_id;
-        public string RoomIdText { get => room_id.ToString(); set { room_id = int.Parse(value); Notify(); } }
+        private ObservableCollection<RoomHistory> room_histories = new ObservableCollection<RoomHistory>();
+        public int RoomId { get => room_id; set { room_id = value; if (setting != null) { setting.RoomId = value; } Notify(nameof(RoomIdText)); } }
+        public string RoomIdText { get => room_id.ToString(); set { room_id = int.Parse(value); if (setting != null) { setting.RoomId = room_id; } Notify(); } }
+        public ObservableCollection<RoomHistory> RoomHistories { get => room_histories; set { room_histories = value; Notify(); } }
 
         private string[] stream_urls = new string[0];
         private DateTime stream_url_expire = DateTime.UnixEpoch;
@@ -121,7 +131,7 @@ namespace yabai
             {
                 foreach (var sequence_length in Enumerable.Range(1, 4))
                 {
-                    if (display.Content.Length % sequence_length == 0)
+                    if (display.Content.Length > sequence_length && display.Content.Length % sequence_length == 0)
                     {
                         var sequence = display.Content[0..sequence_length];
                         if (display.Content == string.Concat(Enumerable.Repeat(sequence, display.Content.Length / sequence_length)))
@@ -132,7 +142,7 @@ namespace yabai
                     }
                 }
             }
-            
+
             // check duplicate with previous 15 messages
             foreach (var previous in messages.Reverse().Take(15))
             {
@@ -151,21 +161,26 @@ namespace yabai
         private bool auto_scroll = true;
         public bool AutoScroll { get => auto_scroll; set { auto_scroll = value; Notify(nameof(AutoScroll)); } }
 
-        private double fontsize = 16;
-        public double FontSize { get => fontsize; set { fontsize = value; Notify(nameof(FontSize)); } }
-
-        private byte background_alpha = 0x9F;
-        private SolidColorBrush background_brush = new SolidColorBrush(new Color { R = 0xCF, G = 0xCF, B = 0xCF, A = 0x9F });
-        public SolidColorBrush ChatBackgroundColor => background_brush; 
-        public byte ChatBackgroundAlpha
+        private bool display_super_chat = true;
+        private bool display_normal_chat = true;
+        private static Dictionary<(bool super, bool normal), Predicate<object>> Filters = new()
         {
-            get => background_alpha;
-            set
-            {
-                background_alpha = value;
-                background_brush = new SolidColorBrush(new Color { R = 0xCF, G = 0xCF, B = 0xCF, A = value }); Notify(); Notify(nameof(ChatBackgroundColor));
-            }
-        }
+            [(true, true)] = v => true,
+            [(false, false)] = v => false,
+            [(true, false)] = v => v is DisplayChatMessage m && m.Price != null,
+            [(false, true)] = v => v is DisplayChatMessage m && m.Price == null,
+        };
+        public CollectionView ChatContainerView { get; set; }
+        public bool DisplaySuperChat { get => display_super_chat; set { display_super_chat = value; Notify(); ChatContainerView.Filter = Filters[(display_super_chat, display_normal_chat)]; } }
+        public bool DisplayNormalChat { get => display_normal_chat; set { display_normal_chat = value; Notify(); ChatContainerView.Filter = Filters[(display_super_chat, display_normal_chat)]; } }
+
+        private double fontsize = 16;
+        public double FontSize { get => fontsize; set { fontsize = value; if (setting != null) { setting.FontSize = value; } Notify(nameof(FontSize)); } }
+
+        private SolidColorBrush background_brush = CreateSolidColorBrush(0x9F);
+        private static SolidColorBrush CreateSolidColorBrush(byte alpha) => new SolidColorBrush(new Color { R = 0xCF, G = 0xCF, B = 0xCF, A = alpha });
+        public SolidColorBrush ChatBackgroundColor => background_brush;
+        public byte ChatBackgroundAlpha { get => background_brush.Color.A; set { background_brush = CreateSolidColorBrush(value); if (setting != null) { setting.BackgroundAlpha = value; }  Notify(); Notify(nameof(ChatBackgroundColor)); } }
 
         public event PropertyChangedEventHandler PropertyChanged;
         public void Notify([CallerMemberName] string propertyName = "")
@@ -201,11 +216,12 @@ namespace yabai
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture) => value == null ? Visibility.Collapsed : Visibility.Visible;
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => throw new NotSupportedException();
     }
-    public class MessageColorConverter : IValueConverter
+    public class ChatColorConverter : IMultiValueConverter
     {
+        private static readonly SolidColorBrush Transparent = new SolidColorBrush(Colors.Transparent);
         private static readonly SolidColorBrush NormalColor = new SolidColorBrush(new Color { R = 0x5F, G = 0x8F, B = 0xCF, A = 0xFF });
         private static readonly SolidColorBrush SuperColor = new SolidColorBrush(Colors.Orange);
-        public object Convert(object value, Type targetType, object parameter, CultureInfo culture) => value != null ? SuperColor : NormalColor;
-        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => throw new NotSupportedException();
+        public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture) => values[0] != null ? SuperColor : (byte)values[1] == 0 ? Transparent : NormalColor;
+        public object[] ConvertBack(object value, Type[] targetType, object parameter, CultureInfo culture) => throw new NotSupportedException();
     }
 }

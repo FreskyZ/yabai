@@ -8,12 +8,16 @@
         mc:Ignorable="d"
         Title="{Binding ApplicationTitle}"
         WindowStyle="None" ResizeMode="NoResize" 
-        Background="Transparent" AllowsTransparency="True" Topmost="True"
-        Height="520" MinHeight="100" Width="360" MinWidth="300" Icon="{Binding Icon}">
+        Background="Transparent" 
+        AllowsTransparency="True" 
+        Topmost="True"
+        Icon="{Binding Icon}"
+        Width="360" MinWidth="300" 
+        Height="400" MinHeight="200">
     <Window.Resources>
         <local:MainWindowViewModel x:Key="viewmodel" />
         <local:NullCollapseConverter x:Key="ncc"/>
-        <local:MessageColorConverter x:Key="mcc"/>
+        <local:ChatColorConverter x:Key="ccc"/>
 
         <SolidColorBrush x:Key="BackgroundColor">#AFFFFFFF</SolidColorBrush>
         <SolidColorBrush x:Key="OptionBackground">#C0FFFFFF</SolidColorBrush>
@@ -85,8 +89,8 @@
         <Style x:Key="OptionsButton" TargetType="Button">
             <Setter Property="Width" Value="32" />
             <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Foreground" Value="#01FFFFFF"/>
-            <Setter Property="Background" Value="#01FFFFFF"/>
+            <Setter Property="Foreground" Value="#5F5F5F"/>
+            <Setter Property="Background" Value="Transparent"/>
             <Setter Property="LayoutTransform">
                 <Setter.Value>
                     <RotateTransform Angle="180"/>
@@ -95,7 +99,7 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}" CornerRadius="4">
+                        <Border Background="{TemplateBinding Background}">
                             <Path Width="96" Height="96" 
                                   Fill="{TemplateBinding Foreground}"
                                   Data="M 48 32 L 20 60 L 76 60 Z">
@@ -106,10 +110,6 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Foreground" Value="White"/>
-                                <Setter Property="Background" Value="#6F6F6F6F"/>
-                            </Trigger>
-                            <Trigger Property="IsKeyboardFocused" Value="True">
                                 <Setter Property="Foreground" Value="White"/>
                                 <Setter Property="Background" Value="#6F6F6F6F"/>
                             </Trigger>
@@ -127,6 +127,7 @@
                 </DataTrigger>
             </Style.Triggers>
         </Style>
+
         <Style x:Key="CloseButton" TargetType="Button">
             <Setter Property="Width" Value="32"/>
             <Setter Property="BorderThickness" Value="0" />
@@ -223,8 +224,8 @@
         </Grid.ColumnDefinitions>
         <Grid.RowDefinitions>
             <RowDefinition Height="8"/> <!-- top shadow and top resize handle -->
-            <RowDefinition Height="32"/> <!-- chat panel is displayed after row 1 with additional margin -->
-            <RowDefinition Height="106"/> <!-- header row rest part -->
+            <RowDefinition Height="30"/> <!-- chat panel is displayed after row 1 with additional margin -->
+            <RowDefinition Height="114"/> <!-- header row rest part -->
             <RowDefinition />
             <RowDefinition Height="8"/> <!-- bottom resize handle -->
         </Grid.RowDefinitions>
@@ -260,7 +261,14 @@
                             <RowDefinition Height="auto" />
                             <RowDefinition Height="1" />
                         </Grid.RowDefinitions>
-                        <Border Grid.Column="0" Background="{Binding Price, Converter={StaticResource mcc}}" CornerRadius="2 0 0 2"/>
+                        <Border Grid.Column="0" CornerRadius="2 0 0 2">
+                            <Border.Background>
+                                <MultiBinding Converter="{StaticResource ccc}">
+                                    <Binding Path="Price" />
+                                    <Binding Path="DataContext.ChatBackgroundAlpha" RelativeSource="{RelativeSource AncestorType=Window}"/>
+                                </MultiBinding>
+                            </Border.Background>
+                        </Border>
                         <Border Grid.Column="1" Background="{Binding DataContext.ChatBackgroundColor, RelativeSource={RelativeSource AncestorType=Window}}" CornerRadius="0 2 2 0"/>
                         <Rectangle Grid.Row="1" Grid.ColumnSpan="2" Fill="#01FFFFFF"/>
                         <TextBlock Grid.ColumnSpan="2" TextWrapping="Wrap" Padding="6 0" MouseDown="handleDragMove">
@@ -289,6 +297,7 @@
                     <RowDefinition Height="28"/>
                     <RowDefinition Height="28"/>
                     <RowDefinition Height="28"/>
+                    <RowDefinition Height="28"/>
                 </Grid.RowDefinitions>
 
                 <!-- row 1: avatar, state, title, close -->
@@ -297,7 +306,7 @@
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="{Binding LiveChatIconWidth}"/>
                             <ColumnDefinition/>
-                            <ColumnDefinition Width="32" />
+                            <ColumnDefinition Width="64" />
                         </Grid.ColumnDefinitions>
 
                         <StackPanel Background="#01FFFFFF" Orientation="Horizontal" Margin="6 0 0 0" MouseDown="handleDragMove">
@@ -328,25 +337,26 @@
 
                         <StackPanel Orientation="Horizontal" FlowDirection="RightToLeft" Grid.Column="2">
                             <Button x:Name="buttonClose" Style="{StaticResource CloseButton}" />
+                            <Button x:Name="buttonOptions" Grid.RowSpan="2" Style="{StaticResource OptionsButton}"/>
                         </StackPanel>
                     </Grid>
                 </Border>
 
                 <!-- row 2: room id, refresh -->
                 <Border Grid.Row="1" BorderThickness="1 0 1 1" Style="{StaticResource OptionContainer}">
-                    <Grid Background="{StaticResource OptionBackground}">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="64"/>
-                            <ColumnDefinition Width="72"/>
-                            <ColumnDefinition />
-                            <ColumnDefinition Width="32" />
-                        </Grid.ColumnDefinitions>
+                    <StackPanel Orientation="Horizontal" Background="{StaticResource OptionBackground}">
                         <TextBlock VerticalAlignment="Center" Margin="8 0 0 0">Room Id</TextBlock>
-                        <TextBox Grid.Column="1" x:Name="textboxRoomId" Width="72" MaxLength="10" VerticalAlignment="Center" Text="{Binding RoomIdText, Mode=TwoWay}"/>
-                        <StackPanel Orientation="Horizontal" FlowDirection="RightToLeft" Grid.Column="3">
-                            <Button Click="handleRefreshAll" Style="{StaticResource RefreshButton}"/>
-                        </StackPanel>
-                    </Grid>
+                        <TextBox x:Name="textboxRoomId" Width="72" MaxLength="10" VerticalAlignment="Center" Margin="8 0 0 0" Text="{Binding RoomIdText}"/>
+                        <ComboBox x:Name="comboboxRoomIds" Width="80" Height="20" VerticalAlignment="Center" Margin="8 0 0 0" 
+                                  ItemsSource="{Binding RoomHistories}" SelectionChanged="handleSelectHistoryRoomId" KeyDown="handleRoomHistoryKeydown">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate DataType="{x:Type local:RoomHistory}">
+                                    <ComboBoxItem Content="{Binding RoomId}" ToolTip="{Binding LastTitle}"/>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                        <Button Height="20" Margin="8 0 0 0" Padding="8 2 8 0" FontSize="10" Click="handleRefreshAll" ToolTip="Reload All">RELOAD</Button>
+                    </StackPanel>
                 </Border>
 
                 <!-- row 3: lines -->
@@ -363,21 +373,26 @@
                     </StackPanel>
                 </Border>
 
-                <!-- 4: auto scroll, font size, background alpha -->
+                <!-- 4: auto scroll, filter super/normal -->
+                <Border Grid.Row="3" BorderThickness="1 0 1 1" Style="{StaticResource OptionContainer}">
+                    <StackPanel Orientation="Horizontal" Background="{StaticResource OptionBackground}">
+                        <CheckBox IsChecked="{Binding AutoScroll}" VerticalAlignment="Center" Margin="8 2 0 0">Auto Scroll</CheckBox>
+                        <CheckBox IsChecked="{Binding DisplaySuperChat}" VerticalAlignment="Center" Margin="8 2 0 0">Super Chat</CheckBox>
+                        <CheckBox IsChecked="{Binding DisplayNormalChat}" VerticalAlignment="Center" Margin="8 2 0 0">Normal Chat</CheckBox>
+                    </StackPanel>
+                </Border>
+                
+                <!-- 4: font size, background alpha -->
                 <Border Grid.Row="4" BorderThickness="1 0 1 1" Style="{StaticResource OptionContainer}">
                     <StackPanel Orientation="Horizontal" Background="{StaticResource OptionBackground}">
-                        <CheckBox IsChecked="{Binding AutoScroll}" VerticalAlignment="Center" Margin="8 0 0 0">Scroll</CheckBox>
-                        <TextBlock VerticalAlignment="Center" Margin="8 0 0 0">Size</TextBlock>
-                        <Slider VerticalAlignment="Center" Margin="8 0 0 0" Width="80" Delay="1500"
+                        <TextBlock VerticalAlignment="Center" Margin="8 0 0 0">Font Size</TextBlock>
+                        <Slider VerticalAlignment="Center" Margin="4 0 0 0" Width="80" Delay="1500"
                                 Minimum="10" Maximum="30" AutoToolTipPlacement="TopLeft" Value="{Binding FontSize}"/>
-                        <TextBlock VerticalAlignment="Center" Margin="8 0 0 0">Alpha</TextBlock>
-                        <Slider VerticalAlignment="Center" Margin="8 0 0 0" Width="80" Delay="1500"
+                        <TextBlock VerticalAlignment="Center" Margin="8 0 0 0">Transparency</TextBlock>
+                        <Slider VerticalAlignment="Center" Margin="4 0 0 0" Width="80" Delay="1500"
                                 Minimum="0" Maximum="255" AutoToolTipPlacement="TopLeft" Value="{Binding ChatBackgroundAlpha}"/>
                     </StackPanel>
                 </Border>
-
-                <!-- auto hide expand options -->
-                <Button x:Name="buttonOptions" Grid.RowSpan="2" Margin="0 20 0 0" VerticalAlignment="Top" Style="{StaticResource OptionsButton}"/>
             </Grid>
         </Border>
 

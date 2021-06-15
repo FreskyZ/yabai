@@ -12,6 +12,12 @@ namespace yabai
             {
                 CultureInfo.DefaultThreadCurrentUICulture = CultureInfo.GetCultureInfo("en-US");
             }
+
+            DispatcherUnhandledException += (s, e) =>
+            {
+                MessageBox.Show(e.Exception.ToString(), "UNHANDLED EXCEPTION");
+            };
+
             base.OnStartup(e);
         }
     }

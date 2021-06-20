@@ -7,7 +7,9 @@ using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Data;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
@@ -62,6 +64,7 @@ namespace yabai
         {
             this.info = info;
             icon = ConvertToImage(info.LiverAvatar);
+            Application.Current.MainWindow.Icon = icon; // data binding Window.Icon and Image.Icon to DataContext.Icon does not update application icon
 
             Notify(nameof(Icon));
             Notify(nameof(WindowTitle));
@@ -85,23 +88,63 @@ namespace yabai
             Notify(nameof(LiveChatIconWidth));
         }
 
-        private bool options_visible;
-        public bool OptionsVisible { get => options_visible; set { options_visible = value; Notify(); } }
+        private bool options_visible = true; // initial visible to true
+        private bool ignore_next_set; // strange, magic but very efficient method to prevent options to hide when manually set room id dropdown to hide
+        public bool OptionsVisible { get => options_visible || !auto_scroll; set { if (ignore_next_set) { ignore_next_set = false; return; } options_visible = value; Notify(); } }
 
-        private int room_id = 92613;
+        private int room_id = 0;
         private ObservableCollection<RoomHistory> room_histories = new ObservableCollection<RoomHistory>();
         public int RoomId { get => room_id; set { room_id = value; if (setting != null) { setting.RoomId = value; } Notify(nameof(RoomIdText)); } }
-        public string RoomIdText { get => room_id.ToString(); set { room_id = int.Parse(value); if (setting != null) { setting.RoomId = room_id; } Notify(); } }
-        public ObservableCollection<RoomHistory> RoomHistories { get => room_histories; set { room_histories = value; Notify(); } }
+        public string RoomIdText { get => room_id.ToString(); set { int.TryParse(value, out room_id); if (setting != null) { setting.RoomId = room_id; } Notify(); } }
+        public ObservableCollection<RoomHistory> RoomHistories { get => room_histories; set { room_histories = new ObservableCollection<RoomHistory>(value.OrderBy(h => h.RoomId)); Notify(); } }
+        private bool room_id_dropdown_visibility;
+        public bool RoomIdDropdownVisibility { get => room_id_dropdown_visibility; set { room_id_dropdown_visibility = value; Notify(); } }
+        public SimpleCommand<int> SelectRoomIdCommand { get; set; }
+        public SimpleCommand<RoomHistory> DeleteRoomIdCommand { get; set; }
+        public MainWindowViewModel()
+        {
+            SelectRoomIdCommand = new SimpleCommand<int>(HandleSelectRoomId);
+            DeleteRoomIdCommand = new SimpleCommand<RoomHistory>(HandleDeleteRoomId);
+        }
+        private void HandleSelectRoomId(object sender, int roomId)
+        {
+            RoomId = roomId;
+            RoomIdDropdownVisibility = false;
+            ignore_next_set = true;
+        }
+        private void HandleDeleteRoomId(object sender, RoomHistory entry)
+        {
+            RoomHistories.Remove(entry);
+            Notify(nameof(RoomHistories));
+            setting.RoomHistories = RoomHistories.ToArray();
+        }
+        public void UpdateRoomHistory(int roomId, string lastTitle)
+        {
+            var history_entry = RoomHistories.FirstOrDefault(h => h.RoomId == info.RoomId);
+            if (history_entry.LastTitle != null)
+            {
+                // you cannot update inplace because it is a struct while findIndex is not available
+                RoomHistories.Remove(history_entry);
+            }
+            RoomHistories.Add(new RoomHistory { RoomId = info.RoomId, LastTitle = $"{info.LiveTitle} - {info.LiverName}" });
+            RoomId = RoomId;
+            RoomHistories = RoomHistories; // notify and reoder
+            setting.RoomHistories = RoomHistories.ToArray();
+        }
 
         private string[] stream_urls = new string[0];
-        private DateTime stream_url_expire = DateTime.UnixEpoch;
         private string media_player = @"C:\Program Files\DAUM\PotPlayer\PotPlayerMini64.exe";
         public string[] StreamURLs => stream_urls;
-        public DateTime StreamURLExpire => stream_url_expire;
-        public string StreamURLExpireString => $"expires {stream_url_expire:HH\\:ss}";
         public string[] StreamURLNames => stream_urls.Select((_, index) => $"Line {index + 1}").ToArray();
         public bool StreamURLButtonEnabled => stream_urls.Length > 0;
+
+        private DateTime stream_url_expire = DateTime.UnixEpoch;
+        private string last_used_url;
+        public DateTime StreamURLExpire => stream_url_expire;
+        public string StreamURLExpireString => null; // $"expires {stream_url_expire:HH\\:ss}";
+        public string LastUsedStreamURL { get => last_used_url; set { last_used_url = value; Notify(nameof(IconBadgeVisibility)); } } // indicate user when last used url is not in current url list
+        public Visibility IconBadgeVisibility => icon != null && LastUsedStreamURL != null && !StreamURLs.Contains(LastUsedStreamURL) ? Visibility.Visible : Visibility.Collapsed;
+
         public string MediaPlayer { get => media_player; set { media_player = value; Notify(); } }
         public void SetStreamURLs((string[] urls, DateTime expire) u)
         {
@@ -111,7 +154,7 @@ namespace yabai
             Notify(nameof(StreamURLExpireString));
             Notify(nameof(StreamURLNames));
             Notify(nameof(StreamURLButtonEnabled));
-            Notify(nameof(MediaPlayer));
+            Notify(nameof(IconBadgeVisibility));
         }
 
         private ObservableCollection<DisplayChatMessage> messages = new ObservableCollection<DisplayChatMessage>();
@@ -123,28 +166,45 @@ namespace yabai
             {
                 Price = message.Price,
                 UserName = message.UserName,
-                Content = message.Content,
+                Content = message.Content, 
                 TimeStamp = message.TimeStamp,
             };
 
-            if (display.Content.Length > 1)
+            // recorded message content is exactly received, but display message can trim
+            display.Content = display.Content.Trim();
+
+            // merge ascii and full width question mark and exclamation mark
+            display.Content = display.Content.Replace('?', '？').Replace('!', '！');
+
+            // 6 characters of repeated sequence accepts $"\{4-char name vup singing}/"
+            foreach (var sequence_length in Enumerable.Range(1, 6))
             {
-                foreach (var sequence_length in Enumerable.Range(1, 4))
+                if (display.Content.Length > sequence_length && display.Content.Length % sequence_length == 0)
                 {
-                    if (display.Content.Length > sequence_length && display.Content.Length % sequence_length == 0)
+                    var sequence = display.Content[0..sequence_length];
+                    if (display.Content == string.Concat(Enumerable.Repeat(sequence, display.Content.Length / sequence_length)))
                     {
-                        var sequence = display.Content[0..sequence_length];
-                        if (display.Content == string.Concat(Enumerable.Repeat(sequence, display.Content.Length / sequence_length)))
-                        {
-                            display.Content = sequence;
-                            display.Count = display.Content.Length / sequence_length;
-                        }
+                        display.Content = sequence;
+                        display.Count = display.Content.Length / sequence_length;
                     }
                 }
             }
 
-            // check duplicate with previous 15 messages
-            foreach (var previous in messages.Reverse().Take(15))
+            // fold /2333+/ to 233 x folded count of 3, 233 is 233x1, 2333 is 233x2, 23333 is 233x3
+            if (display.Content.StartsWith("233") && display.Content[3..].All(c => c == '3'))
+            {
+                display.Count = display.Content.Length - 2; 
+                display.Content = "233";
+            }
+            // fold all characters same except first character, while not for number, this is designed for /oh+/, but make it generic
+            else if (!display.Content.All(c => char.IsDigit(c)) && display.Content.Length > 2 && display.Content[2..].All(c => c == display.Content[1]))
+            {
+                display.Count = display.Content.Length - 1;
+                display.Content = display.Content[0..2];
+            }
+
+            // check duplicate with previous 20 messages
+            foreach (var previous in messages.Reverse().Take(20))
             {
                 if (StringComparer.CurrentCultureIgnoreCase.Equals(display.Content, previous.Content))
                 {
@@ -223,5 +283,20 @@ namespace yabai
         private static readonly SolidColorBrush SuperColor = new SolidColorBrush(Colors.Orange);
         public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture) => values[0] != null ? SuperColor : (byte)values[1] == 0 ? Transparent : NormalColor;
         public object[] ConvertBack(object value, Type[] targetType, object parameter, CultureInfo culture) => throw new NotSupportedException();
+    }
+    public class RoomIdRule: ValidationRule
+    {
+        public override ValidationResult Validate(object value, CultureInfo cultureInfo)
+        {
+            return int.TryParse(value as string, out var _) ? ValidationResult.ValidResult : new ValidationResult(false, "room id can only be number");
+        }
+    }
+    public class SimpleCommand<T> : ICommand
+    {
+        public event EventHandler CanExecuteChanged;
+        private readonly EventHandler<T> handler;
+        public SimpleCommand(EventHandler<T> handler) => this.handler = handler;
+        public bool CanExecute(object parameter) => true;
+        public void Execute(object parameter) => this.handler(null, (T)parameter);
     }
 }

@@ -11,8 +11,7 @@
         Background="Transparent" 
         AllowsTransparency="True" 
         Topmost="True"
-        Icon="{Binding Icon}"
-        Width="360" MinWidth="300" 
+        Width="360" MinWidth="308" 
         Height="400" MinHeight="200">
     <Window.Resources>
         <local:MainWindowViewModel x:Key="viewmodel" />
@@ -150,46 +149,32 @@
                                 <Setter Property="Foreground" Value="White"/>
                                 <Setter Property="Background" Value="#FF3F3F"/>
                             </Trigger>
-                            <Trigger Property="IsKeyboardFocused" Value="True">
-                                <Setter Property="Foreground" Value="White"/>
-                                <Setter Property="Background" Value="#FF3F3F"/>
-                            </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
         </Style>
-        <Style x:Key="RefreshButton" TargetType="Button">
-            <Setter Property="Width" Value="32"/>
+        <Style x:Key="DeleteButton" TargetType="Button">
+            <Setter Property="Width" Value="20"/>
             <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Foreground" Value="#6F6F6F" />
+            <Setter Property="Foreground" Value="#AF5F5F5F" />
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
                         <Border Background="{TemplateBinding Background}">
-                            <Path Margin="0 3 2 0" Width="1200" Height="1200" 
+                            <Path Margin="4" Width="96" Height="96" 
                                   Stroke="{TemplateBinding Foreground}" 
-                                  StrokeThickness="80"
-                                  Data="M 909.1 209.3 l -56.4 44.1 C 775.8 155.1 656.2 92 521.9 92 C 290 92 102.3 279.5 102 511.5 C 101.7 743.7 289.8 932 521.9 932 
-                                  c 181.3 0 335.8 -115 394.6 -276.1 c 1.5 -4.2 -0.7 -8.9 -4.9 -10.3 l -56.7 -19.5 a 8 8 0 0 0 -10.1 4.8 c -1.8 5 -3.8 10 -5.9 14.9 
-                                  c -17.3 41 -42.1 77.8 -73.7 109.4 A 344.77 344.77 0 0 1 655.9 829 c -42.3 17.9 -87.4 27 -133.8 27 c -46.5 0 -91.5 -9.1 -133.8 -27 
-                                  A 341.5 341.5 0 0 1 279 755.2 a 342.16 342.16 0 0 1 -73.7 -109.4 c -17.9 -42.4 -27 -87.4 -27 -133.9 s 9.1 -91.5 27 -133.9 c 17.3 -41 42.1 -77.8 73.7 -109.4 
-                                  c 31.6 -31.6 68.4 -56.4 109.3 -73.8 c 42.3 -17.9 87.4 -27 133.8 -27 c 46.5 0 91.5 9.1 133.8 27 a 341.5 341.5 0 0 1 109.3 73.8 
-                                  c 9.9 9.9 19.2 20.4 27.8 31.4 l -60.2 47 a 8 8 0 0 0 3 14.1 l 175.6 43 c 5 1.2 9.9 -2.6 9.9 -7.7 l 0.8 -180.9 c -0.1 -6.6 -7.8 -10.3 -13 -6.2 Z">
+                                  StrokeThickness="20" Data="M 40 40 L 56 56 Z M 40 56 L 56 40 Z">
                                 <Path.LayoutTransform>
-                                    <ScaleTransform ScaleX="-0.013" ScaleY="0.013" />
+                                    <ScaleTransform ScaleX="-0.06" ScaleY="0.06" />
                                 </Path.LayoutTransform>
                             </Path>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter Property="Foreground" Value="White"/>
-                                <Setter Property="Background" Value="#8F6F6F6F"/>
-                            </Trigger>
-                            <Trigger Property="IsKeyboardFocused" Value="True">
-                                <Setter Property="Foreground" Value="White"/>
-                                <Setter Property="Background" Value="#8F6F6F6F"/>
+                                <Setter Property="Background" Value="#8F5F5F5F"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -209,8 +194,39 @@
                 </DataTrigger>
             </Style.Triggers>
         </Style>
-        
+
         <sys:Double x:Key="ChatItemWidth">342</sys:Double>
+
+        <Style x:Key="RoomIdComboBox" TargetType="ComboBox">
+            <Setter Property="Width" Value="100" />
+            <Setter Property="Height" Value="20" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="8 0 0 0"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="IsEditable" Value="True" />
+            <Setter Property="IsTextSearchEnabled" Value="True" />
+            <Setter Property="TextSearch.TextPath" Value="RoomId" />
+            <Setter Property="ItemContainerStyle">
+                <Setter.Value>
+                    <Style TargetType="ComboBoxItem">
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                        <Setter Property="VerticalContentAlignment" Value="Center" />
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="ComboBoxItem">
+                                    <ContentPresenter/>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="Validation.HasError" Value="True">
+                    <Setter Property="ToolTip" Value="{Binding RelativeSource={x:Static RelativeSource.Self}, Path=(Validation.Errors)/ErrorContent}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
 
     </Window.Resources>
     <Window.DataContext>
@@ -274,7 +290,7 @@
                         <TextBlock Grid.ColumnSpan="2" TextWrapping="Wrap" Padding="6 0" MouseDown="handleDragMove">
                             <Run FontSize="12" Foreground="#FF606060" Text="{Binding UserName}"/>
                             <Run FontSize="{Binding DataContext.FontSize, RelativeSource={RelativeSource AncestorType=Window}}" Foreground="#EF2F2F2F" FontWeight="Bold" Text="{Binding Content}" />
-                            <Run FontSize="14" Foreground="HotPink" FontWeight="Bold" Text="{Binding CountString, Mode=OneWay}"/>
+                            <Run FontSize="14" Foreground="#FFEF60A5" FontWeight="Bold" Text="{Binding CountString, Mode=OneWay}"/>
                         </TextBlock>
                     </Grid>
                 </DataTemplate>
@@ -335,6 +351,9 @@
                         <TextBlock Margin="0 0 12 0" Grid.Column="1" TextTrimming="CharacterEllipsis" Height="28" Padding="0 7"
                                Background="#00FFFFFF" MouseDown="handleDragMove" Text="{Binding WindowTitle}" ToolTip="{Binding WindowTitleTooltip}"/>
 
+                        <!-- main icon badge to indicate last copied/opened url expiring -->
+                        <Border Width="10" Height="10" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="24 2 0 0" Background="DarkOrange" CornerRadius="5" Visibility="{Binding IconBadgeVisibility}"/>
+
                         <StackPanel Orientation="Horizontal" FlowDirection="RightToLeft" Grid.Column="2">
                             <Button x:Name="buttonClose" Style="{StaticResource CloseButton}" />
                             <Button x:Name="buttonOptions" Grid.RowSpan="2" Style="{StaticResource OptionsButton}"/>
@@ -342,16 +361,30 @@
                     </Grid>
                 </Border>
 
-                <!-- row 2: room id, refresh -->
+                <!-- row 2: room id, reload -->
                 <Border Grid.Row="1" BorderThickness="1 0 1 1" Style="{StaticResource OptionContainer}">
                     <StackPanel Orientation="Horizontal" Background="{StaticResource OptionBackground}">
-                        <TextBlock VerticalAlignment="Center" Margin="8 0 0 0">Room Id</TextBlock>
-                        <TextBox x:Name="textboxRoomId" Width="72" MaxLength="10" VerticalAlignment="Center" Margin="8 0 0 0" Text="{Binding RoomIdText}"/>
-                        <ComboBox x:Name="comboboxRoomIds" Width="80" Height="20" VerticalAlignment="Center" Margin="8 0 0 0" 
-                                  ItemsSource="{Binding RoomHistories}" SelectionChanged="handleSelectHistoryRoomId" KeyDown="handleRoomHistoryKeydown">
+                        <TextBlock VerticalAlignment="Center" Margin="8 0 0 0">Room</TextBlock>
+                        <ComboBox x:Name="comboboxRoomIds" Style="{StaticResource RoomIdComboBox}" 
+                                  ItemsSource="{Binding RoomHistories}" IsDropDownOpen="{Binding RoomIdDropdownVisibility}">
+                            <ComboBox.Text>
+                                <Binding Path="RoomIdText">
+                                    <Binding.ValidationRules>
+                                        <local:RoomIdRule />
+                                    </Binding.ValidationRules>
+                                </Binding>
+                            </ComboBox.Text>
                             <ComboBox.ItemTemplate>
                                 <DataTemplate DataType="{x:Type local:RoomHistory}">
-                                    <ComboBoxItem Content="{Binding RoomId}" ToolTip="{Binding LastTitle}"/>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Button BorderThickness="0" Background="Transparent" Width="80" 
+                                                Content="{Binding RoomId}" ToolTip="{Binding LastTitle}"
+                                                Command="{Binding DataContext.SelectRoomIdCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                CommandParameter="{Binding RoomId}"/>
+                                        <Button Style="{StaticResource DeleteButton}"
+                                                Command="{Binding DataContext.DeleteRoomIdCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                CommandParameter="{Binding}"/>
+                                    </StackPanel>
                                 </DataTemplate>
                             </ComboBox.ItemTemplate>
                         </ComboBox>
@@ -362,7 +395,7 @@
                 <!-- row 3: lines -->
                 <Border Grid.Row="2" BorderThickness="1 0 1 1" Style="{StaticResource OptionContainer}">
                     <StackPanel Orientation="Horizontal" Background="{StaticResource OptionBackground}">
-                        <TextBlock VerticalAlignment="Center" Margin="8 0 0 0">Lines</TextBlock>
+                        <TextBlock VerticalAlignment="Center" Margin="8 0 0 0">Line</TextBlock>
                         <ComboBox x:Name="comboboxLines" Height="20" Width="80" Margin="8 0 0 0" ItemsSource="{Binding StreamURLNames}" />
                         <Button x:Name="buttonCopyLine" Height="20" Margin="8 0 0 0" Padding="8 2 8 0" FontSize="10" 
                                 IsEnabled="{Binding StreamURLButtonEnabled}" ToolTip="{Binding StreamURLExpireString}">COPY</Button>
@@ -385,12 +418,12 @@
                 <!-- 4: font size, background alpha -->
                 <Border Grid.Row="4" BorderThickness="1 0 1 1" Style="{StaticResource OptionContainer}">
                     <StackPanel Orientation="Horizontal" Background="{StaticResource OptionBackground}">
-                        <TextBlock VerticalAlignment="Center" Margin="8 0 0 0">Font Size</TextBlock>
-                        <Slider VerticalAlignment="Center" Margin="4 0 0 0" Width="80" Delay="1500"
-                                Minimum="10" Maximum="30" AutoToolTipPlacement="TopLeft" Value="{Binding FontSize}"/>
-                        <TextBlock VerticalAlignment="Center" Margin="8 0 0 0">Transparency</TextBlock>
-                        <Slider VerticalAlignment="Center" Margin="4 0 0 0" Width="80" Delay="1500"
-                                Minimum="0" Maximum="255" AutoToolTipPlacement="TopLeft" Value="{Binding ChatBackgroundAlpha}"/>
+                        <TextBlock VerticalAlignment="Center" Margin="8 0 0 0">FontSize</TextBlock>
+                        <Slider VerticalAlignment="Center" Width="72"
+                                Minimum="10" Maximum="30" AutoToolTipPlacement="TopLeft" Value="{Binding FontSize, Delay=500}"/>
+                        <TextBlock VerticalAlignment="Center" Margin="4 0 0 0">Transparency</TextBlock>
+                        <Slider VerticalAlignment="Center" Width="72"
+                                Minimum="1" Maximum="255" AutoToolTipPlacement="TopLeft" Value="{Binding ChatBackgroundAlpha}"/>
                     </StackPanel>
                 </Border>
             </Grid>

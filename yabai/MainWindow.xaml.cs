@@ -31,6 +31,7 @@ namespace yabai
             Top = setting.WindowTop;
             Width = Math.Max(MinWidth, setting.WindowWidth);
             Height = Math.Max(MinHeight, setting.WindowHeight);
+            Resources["ChatItemWidth"] = Width - 18;
 
             state = DataContext as MainWindowViewModel;
             state.SetSetting(setting);
@@ -42,11 +43,11 @@ namespace yabai
             chat_client.MessageReceived += handleMessageReceived;
 
             // small event handlers
-            textboxRoomId.PreviewTextInput += (s, e) => e.Handled = !s_number.IsMatch(e.Text);
             buttonOptions.MouseEnter += (s, e) => state.OptionsVisible = true;
             headercontainer.MouseLeave += (s, e) => state.OptionsVisible = false;
-            buttonCopyLine.Click += (s, e) => Clipboard.SetData(DataFormats.Text, state.StreamURLs[comboboxLines.SelectedIndex]);
-            buttonOpenLine.Click += (s, e) => System.Diagnostics.Process.Start(state.MediaPlayer, $"\"{state.StreamURLs[comboboxLines.SelectedIndex]}\"");
+            comboboxRoomIds.KeyDown += (s, e) => { if (e.Key == Key.Enter) { handleRefreshAll(s, e); } };
+            buttonCopyLine.Click += (s, e) => { Clipboard.SetData(DataFormats.Text, state.StreamURLs[comboboxLines.SelectedIndex]); state.LastUsedStreamURL = state.StreamURLs[comboboxLines.SelectedIndex]; };
+            buttonOpenLine.Click += (s, e) => { System.Diagnostics.Process.Start(state.MediaPlayer, $"\"{state.StreamURLs[comboboxLines.SelectedIndex]}\""); state.LastUsedStreamURL = state.StreamURLs[comboboxLines.SelectedIndex]; };
             rectangleLiveStateTooltipProvider.ToolTipOpening += (s, e) => rectangleLiveStateTooltipProvider.ToolTip = state.LiveStateTooltip;
 
             // close
@@ -62,20 +63,13 @@ namespace yabai
         private async void handleBaseTimer(object sender, EventArgs e)
         {
             logger.Flush();
-            message_record?.Flush(); 
+            message_record?.Flush();
+
+            if (state.RoomId == 0) return;
 
             var info = await LiveInfo.GetAsync(state.RoomId, logger);
             state.SetLiveInfo(info);
-
-            var history_entry = state.RoomHistories.FirstOrDefault(h => h.RoomId == info.RoomId);
-            if (history_entry.LastTitle != null)
-            {
-                // you cannot update inplace because it is a struct while findIndex is not available
-                state.RoomHistories.Remove(history_entry);
-            }
-            state.RoomHistories.Add(new RoomHistory { RoomId = info.RoomId, LastTitle = info.LiveTitle });
-            state.RoomHistories = state.RoomHistories; // notify
-            setting.RoomHistories = state.RoomHistories.ToArray();
+            state.UpdateRoomHistory(info.RoomId, $"{info.LiveTitle} - {info.LiverName}");
 
             if (info.Living && state.StreamURLExpire != DateTime.UnixEpoch && state.StreamURLExpire - DateTime.Now < TimeSpan.FromMinutes(10))
             {
@@ -89,9 +83,9 @@ namespace yabai
             // chat_client.StartDemo(); return;
             await chat_client.StopAsync();
             var info = await LiveInfo.GetAsync(state.RoomId, logger);
-
             state.SetLiveInfo(info);
             state.SetStreamURLs(await LiveInfo.GetStreamURLAsync(info.RealId, logger));
+            state.UpdateRoomHistory(info.RoomId, $"{info.LiveTitle} - {info.LiverName}");
             comboboxLines.SelectedIndex = 0;
 
             var (token, chat_urls) = await LiveInfo.GetChatInfoAsync(info.RealId, logger);
@@ -114,28 +108,12 @@ namespace yabai
                 }
             }
         }
-
         private void handleSetMediaPlayer(object sender, RoutedEventArgs e)
         {
             var dialog = new OpenFileDialog { Filter = "Executable files (*.exe)|*.exe|All files (*.*)|*.*" };
             if (dialog.ShowDialog() == true)
             {
                 state.MediaPlayer = dialog.FileName;
-            }
-        }
-        private void handleSelectHistoryRoomId(object sender, SelectionChangedEventArgs e)
-        {
-            if (comboboxRoomIds.SelectedIndex != -1)
-            {
-                state.RoomId = state.RoomHistories[comboboxRoomIds.SelectedIndex].RoomId;
-            }
-        }
-        private void handleRoomHistoryKeydown(object sender, KeyEventArgs e)
-        {
-            if (comboboxRoomIds.SelectedIndex != -1 && e.Key == Key.Delete)
-            {
-                state.RoomHistories.RemoveAt(comboboxRoomIds.SelectedIndex);
-                setting.RoomHistories = state.RoomHistories.ToArray();
             }
         }
 
@@ -267,5 +245,4 @@ namespace yabai
 // TODO:
 // 3. getcursorpos unexpectedly on per monitor dpi, it seems like (x/dpi, y/dpi) is enough
 // 5. draggable virtual scroll bar
-// 7. room id history
 // 10. move summary/statistics/insights python script into solution

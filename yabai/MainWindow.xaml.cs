@@ -17,6 +17,7 @@ namespace yabai
         private static readonly Regex s_number = new(@"^\d+$");
 
         private readonly Logger logger;
+        private readonly Archive archive;
         private readonly Setting setting;
         private readonly MainWindowViewModel state;
 
@@ -38,9 +39,11 @@ namespace yabai
             state.ChatContainerView = CollectionViewSource.GetDefaultView(chatcontainer.ItemsSource) as CollectionView;
 
             logger = new Logger();
+            archive = new Archive();
             chat_client = new LiveChatClient(logger);
             chat_client.StateChanged += (s, e) => state.SetChatState(e);
-            chat_client.MessageReceived += handleMessageReceived;
+            chat_client.MessageReceived += archive.HandleMessageReceived;
+            chat_client.MessageReceived += (s, m) => Dispatcher.Invoke(() => state.AddMessage(m));
 
             // small event handlers
             buttonOptions.MouseEnter += (s, e) => state.OptionsVisible = true;
@@ -51,8 +54,8 @@ namespace yabai
             rectangleLiveStateTooltipProvider.ToolTipOpening += (s, e) => rectangleLiveStateTooltipProvider.ToolTip = state.LiveStateTooltip;
 
             // close
-            buttonClose.Click += async (s, e) => { logger.Flush(); Cursor = Cursors.Wait; await chat_client.StopAsync(); Close(); };
-            Application.Current.Exit += async (s, e) => { logger.Flush(); message_record?.Flush(); setting.Save(this); await chat_client.StopAsync(); };
+            buttonClose.Click += async (s, e) => { Cursor = Cursors.Wait; await chat_client.StopAsync(); Close(); };
+            Application.Current.Exit += async (s, e) => { logger.Flush(); archive.Flush(); setting.Save(this); await chat_client.StopAsync(); };
 
             // fetch live info auto
             base_timer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
@@ -63,24 +66,30 @@ namespace yabai
         private async void handleBaseTimer(object sender, EventArgs e)
         {
             logger.Flush();
-            message_record?.Flush();
+            archive.Flush();
 
-            if (state.RoomId == 0) return;
-
-            var info = await LiveInfo.GetAsync(state.RoomId, logger);
-            state.SetLiveInfo(info);
-            state.UpdateRoomHistory(info.RoomId, $"{info.LiveTitle} - {info.LiverName}");
-
-            if (info.Living && state.StreamURLExpire != DateTime.UnixEpoch && state.StreamURLExpire - DateTime.Now < TimeSpan.FromMinutes(10))
+            if (state.RoomId != 0)
             {
-                state.SetStreamURLs(await LiveInfo.GetStreamURLAsync(info.RealId, logger));
+                var info = await LiveInfo.GetAsync(state.RoomId, logger);
+                state.SetLiveInfo(info);
+                state.UpdateRoomHistory(info.RoomId, $"{info.LiveTitle} - {info.LiverName}");
+                archive.Refresh(info);
+
+                if (!info.Living)
+                {
+                    state.SetStreamURLs((new string[0], DateTime.UnixEpoch));
+                }
+                if (info.Living && state.StreamURLExpire != DateTime.UnixEpoch && state.StreamURLExpire - DateTime.Now < TimeSpan.FromMinutes(10))
+                {
+                    state.SetStreamURLs(await LiveInfo.GetStreamURLAsync(info.RealId, logger));
+                }
             }
 
             setting.Save(this);
         }
         private async void handleRefreshAll(object sender, RoutedEventArgs e)
         {
-            // chat_client.StartDemo(); return;
+            // chat_client.Replay(@"chat-92613-210619-200821.csv"); return;
             await chat_client.StopAsync();
             var info = await LiveInfo.GetAsync(state.RoomId, logger);
             state.SetLiveInfo(info);
@@ -90,23 +99,6 @@ namespace yabai
 
             var (token, chat_urls) = await LiveInfo.GetChatInfoAsync(info.RealId, logger);
             await chat_client.StartAsync(info.RealId, chat_urls[0], token);
-
-            if (message_record != null)
-            {
-                message_record.Flush();
-                message_record.Dispose();
-                message_record = null;
-            }
-            if (info.Living)
-            {
-                var filename = $"chat-{info.RoomId}-{info.StartTime:yyMMdd-HHmmss}.csv";
-                var exists = File.Exists(filename);
-                message_record = File.AppendText(filename);
-                if (!exists)
-                {
-                    message_record.WriteLine("time,member,price,user,content");
-                }
-            }
         }
         private void handleSetMediaPlayer(object sender, RoutedEventArgs e)
         {
@@ -116,19 +108,40 @@ namespace yabai
                 state.MediaPlayer = dialog.FileName;
             }
         }
-
         private void handleScrollChange(object sender, ScrollChangedEventArgs e)
         {
-            if (e.ExtentHeightChange > 0 && chatcontainer.Items.Count > 0 && state.AutoScroll)
+            // this event is trigger with a lot of x.xx000000001 and x.xx9999999999 and even x.xxE-15 values, round them
+            var (extent_height, extent_change) = (Math.Round(e.ExtentHeight, 2), Math.Round(e.ExtentHeightChange, 2));
+            var (viewport_height, viewport_change) = (Math.Round(e.ViewportHeight, 2), Math.Round(e.ViewportHeightChange, 2));
+            var (vertical_offset, vertical_change) = (Math.Round(e.VerticalOffset, 2), Math.Round(e.VerticalChange, 2));
+
+            //System.Diagnostics.Debug.WriteLine(
+            //    $"extent {extent_height} change {extent_change} viewport {viewport_height} change {viewport_change} position {vertical_offset} offset {vertical_change}");
+
+            // auto scroll
+            if (extent_change > 0 && vertical_change == 0 && chatcontainer.Items.Count > 0 && state.AutoScroll)
             {
                 chatcontainer.ScrollIntoView(chatcontainer.Items[chatcontainer.Items.Count - 1]);
+            }
+
+            // disable auto scroll when user scroll when auto scroll
+            // NOTE the previous scroll into view will create an event that extent change = 0 and viewport change = 0 but vertical offset > 0 (scroll down)
+            //      while initial user scroll must scroll up (vertical change < 0) so the condition is < 0 not != 0
+            if (state.AutoScroll && extent_change == 0 && viewport_change == 0 && vertical_change < 0)
+            {
+                state.AutoScroll = false;
+            }
+            // enable auto scroll when user scroll when not auto scroll
+            if (!state.AutoScroll && extent_height == viewport_height + vertical_offset)
+            {
+                state.AutoScroll = true;
             }
 
             // normally displays at [vertical offset / extent height, (vertical offset + viewport height) / extent height] * container height
             // min display height is 40px, if less, expand to 2 directions
 
-            var basic_top = e.VerticalOffset / e.ExtentHeight * chatcontainer.ActualHeight;
-            var basic_height = e.ViewportHeight / e.ExtentHeight * chatcontainer.ActualHeight;
+            var basic_top = vertical_offset / extent_height * chatcontainer.ActualHeight;
+            var basic_height = viewport_height / extent_height * chatcontainer.ActualHeight;
 
             if (basic_height < 30) // min height
             {
@@ -140,7 +153,7 @@ namespace yabai
             {
                 basic_top = chatcontainer.ActualHeight - basic_height - 4;
             }
-            if (e.ExtentHeight == 0 || e.ViewportHeight >= e.ExtentHeight) // initial state
+            if (extent_height == 0 || viewport_height >= extent_height) // initial state
             {
                 basic_top = 0;
                 basic_height = 0;
@@ -148,19 +161,6 @@ namespace yabai
 
             chatscrollbar.Margin = new Thickness(0, basic_top, 4, 0);
             chatscrollbar.Height = basic_height;
-        }
-
-        private StreamWriter message_record;
-        private void handleMessageReceived(object sender, LiveChatMessage message)
-        {
-            Dispatcher.Invoke(() =>
-            {
-                state.AddMessage(message);
-            });
-            if (message_record != null)
-            {
-                message_record.WriteLine($"{message.TimeStamp},{message.MemberInfo},{message.Price},{message.UserName},\"{message.Content}\"");
-            }
         }
 
         private bool m_IsMouseDownSizer;

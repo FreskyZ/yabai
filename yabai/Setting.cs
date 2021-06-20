@@ -1,11 +1,7 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Threading.Tasks;
 
 namespace yabai
 {
@@ -30,15 +26,21 @@ namespace yabai
         [JsonPropertyName("room-id")]
         public int RoomId { get; set; } = 92613;
         [JsonPropertyName("room-history")]
-        public RoomHistory[] RoomHistories { get; set; }
+        public RoomHistory[] RoomHistories { get; set; } = Array.Empty<RoomHistory>();
         [JsonPropertyName("fontsize")]
         public double FontSize { get; set; } = 16;
         [JsonPropertyName("alpha")]
         public byte BackgroundAlpha { get; set; } = 128;
 
-        private const string FileName = "appsettings.json";
+        private static readonly string FolderName = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "yabai");
+        private static readonly string FileName = Path.Combine(FolderName, "settings.json");
         public static Setting Load()
         {
+            if (!Directory.Exists(FolderName))
+            {
+                Directory.CreateDirectory(FolderName);
+            }
+
             if (File.Exists(FileName))
             {
                 var json = File.ReadAllText(FileName);

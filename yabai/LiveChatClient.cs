@@ -230,17 +230,19 @@ namespace yabai
                 websocket = null;
             }
 
-            timer?.Dispose();
+            replay_timer?.Dispose();
         }
 
-        private Timer timer;
-        public void StartDemo()
+        private Timer replay_timer;
+        public void Replay(string filename)
         {
             var index = 0;
-            var lines = File.ReadAllLines(@"chat-92613-210614-211902.csv");
-            timer = new Timer(s =>
+            var lines = File.ReadAllLines(filename);
+            var rng = new Random();
+
+            replay_timer = new Timer(s =>
             {
-                foreach (var _ in Enumerable.Range(0, 10))
+                foreach (var _ in Enumerable.Range(0, rng.Next(1, 6)))
                 {
                     if (index < lines.Length)
                     {
@@ -256,7 +258,7 @@ namespace yabai
                         index += 1;
                     }
                 }
-            }, null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
+            }, null, TimeSpan.FromMilliseconds(1000), TimeSpan.FromMilliseconds(1000));
         }
     }
 

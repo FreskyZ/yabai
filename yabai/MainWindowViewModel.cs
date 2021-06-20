@@ -128,7 +128,7 @@ namespace yabai
             }
             RoomHistories.Add(new RoomHistory { RoomId = info.RoomId, LastTitle = $"{info.LiveTitle} - {info.LiverName}" });
             RoomId = RoomId;
-            RoomHistories = RoomHistories; // notify and reoder
+            RoomHistories = RoomHistories; // notify and reorder
             setting.RoomHistories = RoomHistories.ToArray();
         }
 
@@ -170,7 +170,7 @@ namespace yabai
                 TimeStamp = message.TimeStamp,
             };
 
-            // recorded message content is exactly received, but display message can trim
+            // archived message content is exactly received, but display message can trim
             display.Content = display.Content.Trim();
 
             // merge ascii and full width question mark and exclamation mark
@@ -196,15 +196,15 @@ namespace yabai
                 display.Count = display.Content.Length - 2; 
                 display.Content = "233";
             }
-            // fold all characters same except first character, while not for number, this is designed for /oh+/, but make it generic
-            else if (!display.Content.All(c => char.IsDigit(c)) && display.Content.Length > 2 && display.Content[2..].All(c => c == display.Content[1]))
+            // fold /oh+/ to oh x folded count of h
+            else if (display.Content.StartsWith("oh") && display.Content[2..].All(c => c == 'h'))
             {
                 display.Count = display.Content.Length - 1;
-                display.Content = display.Content[0..2];
+                display.Content = "oh";
             }
 
-            // check duplicate with previous 20 messages
-            foreach (var previous in messages.Reverse().Take(20))
+            // check duplicate with previous 16 messages
+            foreach (var previous in messages.Reverse().Take(16))
             {
                 if (StringComparer.CurrentCultureIgnoreCase.Equals(display.Content, previous.Content))
                 {
@@ -219,7 +219,7 @@ namespace yabai
         }
 
         private bool auto_scroll = true;
-        public bool AutoScroll { get => auto_scroll; set { auto_scroll = value; Notify(nameof(AutoScroll)); } }
+        public bool AutoScroll { get => auto_scroll; set { auto_scroll = value; Notify(); Notify(nameof(OptionsVisible)); } }
 
         private bool display_super_chat = true;
         private bool display_normal_chat = true;

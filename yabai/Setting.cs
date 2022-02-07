@@ -23,6 +23,8 @@ namespace yabai
         public double WindowWidth { get; set; } = 360;
         [JsonPropertyName("window-height")]
         public double WindowHeight { get; set; } = 400;
+        [JsonPropertyName("topmost")]
+        public bool TopMost { get; set; } = true;
         [JsonPropertyName("room-id")]
         public int RoomId { get; set; } = 92613;
         [JsonPropertyName("room-history")]
@@ -31,6 +33,10 @@ namespace yabai
         public double FontSize { get; set; } = 16;
         [JsonPropertyName("alpha")]
         public byte BackgroundAlpha { get; set; } = 128;
+        [JsonPropertyName("merge")]
+        public bool MergeMessages { get; set; } = true;
+        [JsonPropertyName("media-player")]
+        public string MediaPlayer { get; set; } = "wmplayer.exe";
 
         private static readonly string FolderName = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "yabai");
         private static readonly string FileName = Path.Combine(FolderName, "settings.json");

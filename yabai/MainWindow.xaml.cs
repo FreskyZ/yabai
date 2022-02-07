@@ -1,7 +1,5 @@
 ﻿using Microsoft.Win32;
 using System;
-using System.IO;
-using System.Linq;
 using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
@@ -37,6 +35,7 @@ namespace yabai
             state = DataContext as MainWindowViewModel;
             state.SetSetting(setting);
             state.ChatContainerView = CollectionViewSource.GetDefaultView(chatcontainer.ItemsSource) as CollectionView;
+            state.RoomIdSelected += (s, e) => handleRefreshAll(s, e);
 
             logger = new Logger();
             archive = new Archive();
@@ -77,6 +76,7 @@ namespace yabai
 
                 if (!info.Living)
                 {
+                    state.LastUsedStreamURL = null;
                     state.SetStreamURLs((new string[0], DateTime.UnixEpoch));
                 }
                 if (info.Living && state.StreamURLExpire != DateTime.UnixEpoch && state.StreamURLExpire - DateTime.Now < TimeSpan.FromMinutes(10))
@@ -94,8 +94,13 @@ namespace yabai
             var info = await LiveInfo.GetAsync(state.RoomId, logger);
             state.SetLiveInfo(info);
             state.SetStreamURLs(await LiveInfo.GetStreamURLAsync(info.RealId, logger));
-            state.UpdateRoomHistory(info.RoomId, $"{info.LiveTitle} - {info.LiverName}");
             comboboxLines.SelectedIndex = 0;
+            state.UpdateRoomHistory(info.RoomId, $"{info.LiveTitle} - {info.LiverName}");
+            state.LastUsedStreamURL = null;
+
+            // archive.handle message received is hooked on live chat client, this direct insert will not duplicate messages
+            state.SetMessages(archive.Reload(info));
+            archive.Refresh(info);
 
             var (token, chat_urls) = await LiveInfo.GetChatInfoAsync(info.RealId, logger);
             await chat_client.StartAsync(info.RealId, chat_urls[0], token);
@@ -243,6 +248,7 @@ namespace yabai
 }
 
 // TODO:
+// 1. ui update, do not occupy one row when options not open
 // 3. getcursorpos unexpectedly on per monitor dpi, it seems like (x/dpi, y/dpi) is enough
 // 5. draggable virtual scroll bar
 // 10. move summary/statistics/insights python script into solution

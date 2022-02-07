@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Windows;
 
@@ -12,6 +13,31 @@ namespace yabai
 
         private string filename;
         private StreamWriter writer;
+        public void HandleMessageReceived(object sender, LiveChatMessage message)
+        {
+            if (writer != null)
+            {
+                var builder = new StringBuilder()
+                    .Append(message.TimeStamp).Append(',')
+                    .Append(message.MemberInfo).Append(',')
+                    .Append(message.Price).Append(',')
+                    .Append(message.UserName).Append(',');
+
+                if (message.Content.Contains(','))
+                {
+                    builder.Append('"');
+                }
+                builder.Append(message.Content);
+                if (message.Content.Contains(','))
+                {
+                    builder.Append('"');
+                }
+
+                writer.WriteLine(builder.ToString());
+            }
+        }
+
+        // refresh info at base timer
         public void Refresh(LiveInfo info)
         {
             var foldername = Path.Combine(FolderName, info.RoomId.ToString());
@@ -49,30 +75,28 @@ namespace yabai
                     MessageBox.Show("Cannot open archive file, not saving.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
-
         }
-        public void HandleMessageReceived(object sender, LiveChatMessage message)
+        // try fetch previous archived messages and refresh info at reload all
+        public DisplayChatMessage[] Reload(LiveInfo info)
         {
-            if (writer != null)
+            var filename = Path.Combine(FolderName, info.RoomId.ToString(), $"{info.StartTime:yyMMdd-HHmmss}.csv");
+            if (!File.Exists(filename))
             {
-                var builder = new StringBuilder()
-                    .Append(message.TimeStamp).Append(',')
-                    .Append(message.MemberInfo).Append(',')
-                    .Append(message.Price).Append(',')
-                    .Append(message.UserName).Append(',');
-
-                if (message.Content.Contains(','))
-                {
-                    builder.Append('"');
-                }
-                builder.Append(message.Content);
-                if (message.Content.Contains(','))
-                {
-                    builder.Append('"');
-                }
-
-                writer.WriteLine(builder.ToString());
+                return Array.Empty<DisplayChatMessage>();
             }
+
+            return File.ReadAllLines(filename).Select(line =>
+            {
+                var message = line.Split(',');
+                return new DisplayChatMessage
+                {
+                    Count = 1,
+                    TimeStamp = long.Parse(message[0]),
+                    Price = string.IsNullOrEmpty(message[2]) ? null : message[2],
+                    UserName = message[3],
+                    Content = message[4].Trim('"'),
+                };
+            }).ToArray();
         }
 
         public void Flush()

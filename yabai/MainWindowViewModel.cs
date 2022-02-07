@@ -44,12 +44,18 @@ namespace yabai
             this.background_brush = CreateSolidColorBrush(setting.BackgroundAlpha);
             this.room_id = setting.RoomId;
             this.room_histories = new ObservableCollection<RoomHistory>(setting.RoomHistories);
+            this.topmost = setting.TopMost;
+            this.media_player = setting.MediaPlayer;
+            this.merge_messages = setting.MergeMessages;
 
             Notify(nameof(FontSize));
             Notify(nameof(ChatBackgroundAlpha));
             Notify(nameof(ChatBackgroundColor));
             Notify(nameof(RoomIdText));
             Notify(nameof(RoomHistories));
+            Notify(nameof(TopMost));
+            Notify(nameof(MediaPlayer));
+            Notify(nameof(MergeMessages));
         }
 
         private LiveInfo info;
@@ -106,11 +112,13 @@ namespace yabai
             SelectRoomIdCommand = new SimpleCommand<int>(HandleSelectRoomId);
             DeleteRoomIdCommand = new SimpleCommand<RoomHistory>(HandleDeleteRoomId);
         }
+        public event EventHandler<RoutedEventArgs> RoomIdSelected;
         private void HandleSelectRoomId(object sender, int roomId)
         {
             RoomId = roomId;
             RoomIdDropdownVisibility = false;
             ignore_next_set = true;
+            RoomIdSelected?.Invoke(this, new RoutedEventArgs());
         }
         private void HandleDeleteRoomId(object sender, RoomHistory entry)
         {
@@ -133,7 +141,6 @@ namespace yabai
         }
 
         private string[] stream_urls = new string[0];
-        private string media_player = @"C:\Program Files\DAUM\PotPlayer\PotPlayerMini64.exe";
         public string[] StreamURLs => stream_urls;
         public string[] StreamURLNames => stream_urls.Select((_, index) => $"Line {index + 1}").ToArray();
         public bool StreamURLButtonEnabled => stream_urls.Length > 0;
@@ -141,24 +148,31 @@ namespace yabai
         private DateTime stream_url_expire = DateTime.UnixEpoch;
         private string last_used_url;
         public DateTime StreamURLExpire => stream_url_expire;
-        public string StreamURLExpireString => null; // $"expires {stream_url_expire:HH\\:ss}";
         public string LastUsedStreamURL { get => last_used_url; set { last_used_url = value; Notify(nameof(IconBadgeVisibility)); } } // indicate user when last used url is not in current url list
         public Visibility IconBadgeVisibility => icon != null && LastUsedStreamURL != null && !StreamURLs.Contains(LastUsedStreamURL) ? Visibility.Visible : Visibility.Collapsed;
 
-        public string MediaPlayer { get => media_player; set { media_player = value; Notify(); } }
+        private string media_player = "wmplayer.exe";
+        public string MediaPlayer { get => media_player; set { media_player = value; if (setting != null) { setting.MediaPlayer = value; } Notify(); } }
         public void SetStreamURLs((string[] urls, DateTime expire) u)
         {
             this.stream_urls = u.urls;
             this.stream_url_expire = u.expire;
 
-            Notify(nameof(StreamURLExpireString));
             Notify(nameof(StreamURLNames));
             Notify(nameof(StreamURLButtonEnabled));
             Notify(nameof(IconBadgeVisibility));
         }
 
+        private bool merge_messages = true;
+        public bool MergeMessages { get => merge_messages; set { merge_messages = value; if (setting != null) { setting.MergeMessages = value; } Notify(); } }
         private ObservableCollection<DisplayChatMessage> messages = new ObservableCollection<DisplayChatMessage>();
         public ObservableCollection<DisplayChatMessage> Messages => messages;
+        public void SetMessages(DisplayChatMessage[] histories)
+        {
+            // this does not have merge message
+            messages = new ObservableCollection<DisplayChatMessage>(histories);
+            Notify(nameof(Messages));
+        }
         public void AddMessage(LiveChatMessage message)
         {
             // check self repeated [1, 4] characters
@@ -176,41 +190,44 @@ namespace yabai
             // merge ascii and full width question mark and exclamation mark
             display.Content = display.Content.Replace('?', '？').Replace('!', '！');
 
-            // 6 characters of repeated sequence accepts $"\{4-char name vup singing}/"
-            foreach (var sequence_length in Enumerable.Range(1, 6))
+            if (merge_messages)
             {
-                if (display.Content.Length > sequence_length && display.Content.Length % sequence_length == 0)
+                // 6 characters of repeated sequence accepts $"\{4-char name vup singing}/"
+                foreach (var sequence_length in Enumerable.Range(1, 6))
                 {
-                    var sequence = display.Content[0..sequence_length];
-                    if (display.Content == string.Concat(Enumerable.Repeat(sequence, display.Content.Length / sequence_length)))
+                    if (display.Content.Length > sequence_length && display.Content.Length % sequence_length == 0)
                     {
-                        display.Content = sequence;
-                        display.Count = display.Content.Length / sequence_length;
+                        var sequence = display.Content[0..sequence_length];
+                        if (display.Content == string.Concat(Enumerable.Repeat(sequence, display.Content.Length / sequence_length)))
+                        {
+                            display.Content = sequence;
+                            display.Count = display.Content.Length / sequence_length;
+                        }
                     }
                 }
-            }
 
-            // fold /2333+/ to 233 x folded count of 3, 233 is 233x1, 2333 is 233x2, 23333 is 233x3
-            if (display.Content.StartsWith("233") && display.Content[3..].All(c => c == '3'))
-            {
-                display.Count = display.Content.Length - 2; 
-                display.Content = "233";
-            }
-            // fold /oh+/ to oh x folded count of h
-            else if (display.Content.StartsWith("oh") && display.Content[2..].All(c => c == 'h'))
-            {
-                display.Count = display.Content.Length - 1;
-                display.Content = "oh";
-            }
-
-            // check duplicate with previous 16 messages
-            foreach (var previous in messages.Reverse().Take(16))
-            {
-                if (StringComparer.CurrentCultureIgnoreCase.Equals(display.Content, previous.Content))
+                // fold /2333+/ to 233 x folded count of 3, 233 is 233x1, 2333 is 233x2, 23333 is 233x3
+                if (display.Content.StartsWith("233") && display.Content[3..].All(c => c == '3'))
                 {
-                    previous.Count += display.Count;
-                    Notify(nameof(Messages));
-                    return;
+                    display.Count = display.Content.Length - 2;
+                    display.Content = "233";
+                }
+                // fold /oh+/ to oh x folded count of h
+                else if (display.Content.StartsWith("oh") && display.Content[2..].All(c => c == 'h'))
+                {
+                    display.Count = display.Content.Length - 1;
+                    display.Content = "oh";
+                }
+
+                // check duplicate with previous 16 messages
+                foreach (var previous in messages.Reverse().Take(16))
+                {
+                    if (StringComparer.CurrentCultureIgnoreCase.Equals(display.Content, previous.Content))
+                    {
+                        previous.Count += display.Count;
+                        Notify(nameof(Messages));
+                        return;
+                    }
                 }
             }
 
@@ -241,6 +258,9 @@ namespace yabai
         private static SolidColorBrush CreateSolidColorBrush(byte alpha) => new SolidColorBrush(new Color { R = 0xCF, G = 0xCF, B = 0xCF, A = alpha });
         public SolidColorBrush ChatBackgroundColor => background_brush;
         public byte ChatBackgroundAlpha { get => background_brush.Color.A; set { background_brush = CreateSolidColorBrush(value); if (setting != null) { setting.BackgroundAlpha = value; }  Notify(); Notify(nameof(ChatBackgroundColor)); } }
+
+        private bool topmost = true;
+        public bool TopMost { get => topmost; set { topmost = value; if (setting != null) { setting.TopMost = value; } Notify(); } }
 
         public event PropertyChangedEventHandler PropertyChanged;
         public void Notify([CallerMemberName] string propertyName = "")

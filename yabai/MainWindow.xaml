@@ -10,7 +10,7 @@
         WindowStyle="None" ResizeMode="NoResize" 
         Background="Transparent" 
         AllowsTransparency="True" 
-        Topmost="True"
+        Topmost="{Binding TopMost}"
         Width="360" MinWidth="308" 
         Height="400" MinHeight="200">
     <Window.Resources>
@@ -198,7 +198,7 @@
         <sys:Double x:Key="ChatItemWidth">342</sys:Double>
 
         <Style x:Key="RoomIdComboBox" TargetType="ComboBox">
-            <Setter Property="Width" Value="100" />
+            <Setter Property="Width" Value="114" />
             <Setter Property="Height" Value="20" />
             <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="Margin" Value="8 0 0 0"/>
@@ -241,7 +241,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="8"/> <!-- top shadow and top resize handle -->
             <RowDefinition Height="30"/> <!-- chat panel is displayed after row 1 with additional margin -->
-            <RowDefinition Height="114"/> <!-- header row rest part -->
+            <RowDefinition Height="140"/> <!-- header row rest part -->
             <RowDefinition />
             <RowDefinition Height="8"/> <!-- bottom resize handle -->
         </Grid.RowDefinitions>
@@ -314,6 +314,7 @@
                     <RowDefinition Height="28"/>
                     <RowDefinition Height="28"/>
                     <RowDefinition Height="28"/>
+                    <RowDefinition Height="28"/>
                 </Grid.RowDefinitions>
 
                 <!-- row 1: avatar, state, title, close -->
@@ -365,7 +366,7 @@
                 <Border Grid.Row="1" BorderThickness="1 0 1 1" Style="{StaticResource OptionContainer}">
                     <StackPanel Orientation="Horizontal" Background="{StaticResource OptionBackground}">
                         <TextBlock VerticalAlignment="Center" Margin="8 0 0 0">Room</TextBlock>
-                        <ComboBox x:Name="comboboxRoomIds" Style="{StaticResource RoomIdComboBox}" 
+                        <ComboBox x:Name="comboboxRoomIds" Style="{StaticResource RoomIdComboBox}" MaxDropDownHeight="80"
                                   ItemsSource="{Binding RoomHistories}" IsDropDownOpen="{Binding RoomIdDropdownVisibility}">
                             <ComboBox.Text>
                                 <Binding Path="RoomIdText">
@@ -377,7 +378,8 @@
                             <ComboBox.ItemTemplate>
                                 <DataTemplate DataType="{x:Type local:RoomHistory}">
                                     <StackPanel Orientation="Horizontal">
-                                        <Button BorderThickness="0" Background="Transparent" Width="80" 
+                                        <Button BorderThickness="0" Background="Transparent" Width="72" 
+                                                HorizontalContentAlignment="Left" Padding="6 0 0 0"
                                                 Content="{Binding RoomId}" ToolTip="{Binding LastTitle}"
                                                 Command="{Binding DataContext.SelectRoomIdCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                 CommandParameter="{Binding RoomId}"/>
@@ -397,10 +399,8 @@
                     <StackPanel Orientation="Horizontal" Background="{StaticResource OptionBackground}">
                         <TextBlock VerticalAlignment="Center" Margin="8 0 0 0">Line</TextBlock>
                         <ComboBox x:Name="comboboxLines" Height="20" Width="80" Margin="8 0 0 0" ItemsSource="{Binding StreamURLNames}" />
-                        <Button x:Name="buttonCopyLine" Height="20" Margin="8 0 0 0" Padding="8 2 8 0" FontSize="10" 
-                                IsEnabled="{Binding StreamURLButtonEnabled}" ToolTip="{Binding StreamURLExpireString}">COPY</Button>
-                        <Button x:Name="buttonOpenLine" Height="20" Margin="8 0 0 0" Padding="8 2 8 0" FontSize="10" 
-                                IsEnabled="{Binding StreamURLButtonEnabled}" ToolTip="{Binding StreamURLExpireString}">OPEN</Button>
+                        <Button x:Name="buttonCopyLine" Height="20" Margin="8 0 0 0" Padding="8 2 8 0" FontSize="10" IsEnabled="{Binding StreamURLButtonEnabled}">COPY</Button>
+                        <Button x:Name="buttonOpenLine" Height="20" Margin="8 0 0 0" Padding="8 2 8 0" FontSize="10" IsEnabled="{Binding StreamURLButtonEnabled}">OPEN</Button>
                         <Button Height="20" Margin="8 0 0 0" Padding="8 2 8 0" FontSize="10"
                                 ToolTip="{Binding MediaPlayer, Mode=OneWay}" Click="handleSetMediaPlayer">WITH</Button>
                     </StackPanel>
@@ -424,6 +424,14 @@
                         <TextBlock VerticalAlignment="Center" Margin="4 0 0 0">Transparency</TextBlock>
                         <Slider VerticalAlignment="Center" Width="72"
                                 Minimum="1" Maximum="255" AutoToolTipPlacement="TopLeft" Value="{Binding ChatBackgroundAlpha}"/>
+                    </StackPanel>
+                </Border>
+                
+                <!-- 5: topmost, merge -->
+                <Border Grid.Row="5" BorderThickness="1 0 1 1" Style="{StaticResource OptionContainer}">
+                    <StackPanel Orientation="Horizontal" Background="{StaticResource OptionBackground}">
+                        <CheckBox IsChecked="{Binding TopMost}" VerticalAlignment="Center" Margin="8 2 0 0">Top Most</CheckBox>
+                        <CheckBox IsChecked="{Binding MergeMessages}" VerticalAlignment="Center" Margin="8 2 0 0">Merge</CheckBox>
                     </StackPanel>
                 </Border>
             </Grid>

@@ -1,3 +1,7 @@
+## UPDATE: KABAI
+
+kabai is a command line tool used for playing real time danmu when viewing live stream archives to provide similar experience like real "live", with the background that bilibili does not have very usable official archive feature and not all live stream channels have that feature enabled or stable unofficial archive mechanism provided with usable real time danmu support, see [kabai](kabai) folder for detail.
+
 # YABAI
 
 .NET and WPF based bilibili live chat viewer and ~~live stream viewer~~.

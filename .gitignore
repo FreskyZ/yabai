@@ -1,4 +1,2 @@
-bin
-obj
-.vs
 kabai/data
+node_modules

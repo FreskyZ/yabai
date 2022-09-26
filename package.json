@@ -1,0 +1,20 @@
+{
+  "name": "yabai",
+  "type": "module",
+  "version": "0.1.0",
+  "description": "yet another bilibili danmu machine",
+  "main": "src/index.mjs",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/FreskyZ/yabai.git"
+  },
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/FreskyZ/yabai/issues"
+  },
+  "homepage": "https://github.com/FreskyZ/yabai#readme",
+  "dependencies": {
+    "dayjs": "^1.11.5",
+    "ws": "^8.9.0"
+  }
+}

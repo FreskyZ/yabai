@@ -1,4 +1,4 @@
-#!python
+#!python3
 
 from collections import namedtuple
 from time import sleep
@@ -6,6 +6,7 @@ import datetime, json, os, re, requests, signal, sys, threading
 
 SINGLE_PUSH = 13046   # this is really single push because it is not array
 HIGHLIGHTS = [67141, 14272337]  # highlight users
+DATA_SOURCE = 'yabai' # or 'matsuri.icu' for matsuri.icu style website, actually only tested asdanmaku.com which exactly dies when I first publish this code to github
 MOCK = False
 
 # j = json.load(open('1654342284257.json'))
@@ -21,6 +22,7 @@ def print_help(code):
     print('ARGS:')
     print('    DATE      6 digits for YYMMDD, 8 digits for YYYYMMDD, 10 digits for YYYYMMDDhh')
     print('              or 14 digits for YYYYMMDDhhmmss, identify a specific stream by start time')
+    print('              start with additional \'y\' for data source from yabai)')
     print()
     print('SUBCOMMANDS:')
     print('    fetch     fetch raw danmu record from https://asdanmaku.com, no arg for list')
@@ -84,7 +86,13 @@ def download_json(url):
             return None
     else:
         response = requests.get(url)
-        return response.json()
+        try:
+            return response.json()
+        except Exception as e:
+            print(e)
+            print(url)
+            print(response)
+            exit(1)
 
 INFO_FILE = 'data/streams.json'
 fromtimestamp = datetime.datetime.fromtimestamp
@@ -169,17 +177,13 @@ class Comment(object):
     def __str__(self):
         b = ''
         if self.user_id in HIGHLIGHTS:
-            b += '<!!!! '
+            b += '❗❗❗'
         if self.superchat:
-            b += f'<$$$${self.superchat} '
+            b += f'💲{self.superchat} '
         text = '😆' if self.text == '乐' else self.text
         for origin, replace in REPLACEMENT:
             text = text.replace(origin, replace)
         b += f'{self.user_name}: {text}'
-        if self.superchat:
-            b += ' $$$$>'
-        if self.user_id in HIGHLIGHTS:
-            b += ' !!!!>'
         return b
 
 def format_delta(delta):

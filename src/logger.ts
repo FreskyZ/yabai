@@ -1,93 +1,134 @@
-import * as fs from 'fs/promises';
+import * as fs from 'fs';
 import * as path from 'path';
 import * as dayjs from 'dayjs';
 import * as utc from 'dayjs/plugin/utc';
 
-// logging, basic usage:
-//     import { log } from './logger';
-//     log("some message");
-//     log(some error);
-// log files in approot/log, name YYYYMMDD.log, preserve 1 week
+// logging for archive service, usage:
+//    import { log } from './logger';
+//    log.info("some message");
+//    log.error(some error);
+//    log.message(event); // message log is only enabled by environment variable
+//
+// this is copied from wacq/logger, change from async to sync because async seems meaningless
+// because I always block on setup, and write can use non promise async api, and async shutdown make things complicated
 
 // because initialize require utc, while index do not use dayjs, so put it here
 dayjs.extend(utc);
 // logs are in logs directory, there is no meaning to configure it
 const logsDirectory = path.resolve('logs');
 
-// current log's time, use to check day switch and open new log file
-let time = dayjs.utc();
-// log file handle
-let handle: fs.FileHandle = null;
-
-const flushIfCount = 11;
-// in seconds
-const flushIfTimeout = 600;
-let notFlushCount: number = 0;
-// only active when have not flush count
-let notFlushTimeout: NodeJS.Timeout = null;
-
-const reserveDays = 7;
-
-async function init() {
-    await fs.mkdir('logs', { recursive: true });
-    if (handle) {
-        handle.close();
-    }
-    handle = await fs.open(path.join(logsDirectory, `${time.format('YYYYMMDD')}.log`), 'a');
+interface LoggerOptions {
+    readonly postfix: string, // file name postfix
+    readonly flushByCount: number,
+    readonly flushByInterval: number, // in second, flush when this logger is idle and has something to flush
+    readonly reserveDays: number,
 }
-async function flush() {
-    notFlushCount = 0;
-    await handle.sync();
 
-    if (notFlushTimeout) {
-        // clear timeout incase this flush is triggered by write
-        // does not setup new timeout because now not flush count is 0
-        clearTimeout(notFlushTimeout);
-        notFlushTimeout = null;
+class Logger {
+    private time: dayjs.Dayjs = dayjs.utc();
+    private handle: number = 0;
+    private notFlushCount: number = 0;
+    // not null only when have not flush count
+    private notFlushTimeout: NodeJS.Timeout = null;
+
+    constructor(private readonly options: LoggerOptions) {}
+
+    init() {
+        fs.mkdirSync('logs', { recursive: true });
+        this.handle = fs.openSync(path.join(logsDirectory,
+            `${this.time.format('YYYYMMDD')}${this.options.postfix}.log`), 'a');
     }
-    if (!time.isSame(dayjs.utc(), 'date')) {
-        time = dayjs.utc();
-        await setupLog(); // do not repeat init file handle
-        notFlushTimeout = null;
+
+    deinit() {
+        if (this.handle) {
+            fs.fsyncSync(this.handle);
+            if (this.notFlushTimeout) {
+                clearTimeout(this.notFlushTimeout);
+            }
+            fs.closeSync(this.handle);
+        }
     }
-}
-async function cleanup() {
-    for (const filename of await fs.readdir(logsDirectory)) {
-        const date = dayjs.utc(path.basename(filename).slice(0, 8), 'YYYYMMDD');
-        if (date.isValid() && date.add(reserveDays, 'day').isBefore(dayjs.utc(), 'date')) {
-            try {
-                await fs.unlink(path.resolve(logsDirectory, filename));
-            } catch {
-                // ignore
+
+    flush() {
+        // no if this.handle: according to flush strategy,
+        // this function will not be called with this.handle == 0
+
+        this.notFlushCount = 0;
+        fs.fsyncSync(this.handle);
+
+        if (this.notFlushTimeout) {
+            // clear timeout incase this flush is triggered by write
+            // does not setup new timeout because now not flush count is 0
+            clearTimeout(this.notFlushTimeout);
+            this.notFlushTimeout = null;
+        }
+        if (!this.time.isSame(dayjs.utc(), 'date')) {
+            this.time = dayjs.utc();
+            fs.closeSync(this.handle);
+            this.init(); // do not repeat init file handle
+            this.notFlushTimeout = null;
+        }
+    }
+
+    cleanup() {
+        for (const filename of fs.readdirSync(logsDirectory)) {
+            const date = dayjs.utc(path.basename(filename).slice(0, 8), 'YYYYMMDD');
+            if (date.isValid() && date.add(this.options.reserveDays, 'day').isBefore(dayjs.utc(), 'date')) {
+                try {
+                    fs.unlinkSync(path.resolve(logsDirectory, filename));
+                } catch {
+                    // ignore
+                }
+            }
+        }
+    }
+
+    write(content: string) {
+        if (!this.handle) {
+            this.init();
+        }
+        fs.writeSync(this.handle, `[${dayjs.utc().format('HH:mm:ss')}] ${content}\n`);
+        if (this.notFlushCount + 1 > this.options.flushByCount) {
+            this.flush();
+        } else {
+            this.notFlushCount += 1;
+            if (this.notFlushCount == 1) {
+                this.notFlushTimeout = setTimeout(() => this.flush(), this.options.flushByInterval * 1000);
             }
         }
     }
 }
-async function write(content: string) {
-    handle.write(`[${dayjs.utc().format('HH:mm:ss')}] ${content}\n`);
-    if (notFlushCount + 1 > flushIfCount) {
-        flush();
-    } else {
-        notFlushCount += 1;
-        if (notFlushCount == 1) {
-            notFlushTimeout = setTimeout(() => flush(), flushIfTimeout * 1000);
-        }
-    }
-}
 
-export const setupLog = init;
-export const mylog = write; // log is too short, use mylog
-export const shutdownLog = flush;
+type Level = 'info' | 'error' | 'message';
+const levels: Record<Level, LoggerOptions> = {
+    // normal log
+    info: { postfix: 'I', flushByCount: 11, flushByInterval: 600, reserveDays: 7 },
+    // error log, flush immediately, in that case, flush by interval is not used
+    error: { postfix: 'X', flushByCount: 0, flushByInterval: 0, reserveDays: 7 },
+    // message log, is written frequently, so flush by count is kind of large
+    message: { postfix: 'M', flushByCount: 101, flushByInterval: 600, reserveDays: 7 },
+};
+
+// @ts-ignore ts does not understand object.entries, actually it does not understand reduce<>(..., {}), too
+const loggers: Record<Level, Logger> = Object.fromEntries(Object.entries(levels)
+    .filter(([level]) => level != 'message' || ('YABAI_DEBUG' in process.env)).map(([level, options]) => [level, new Logger(options)]));
+
+// @ts-ignore again
+export const log: Record<Level, (content: string) => Promise<void>> =
+    Object.fromEntries(Object.entries(loggers).map(([level, logger]) => [level, logger.write.bind(logger)]));
 
 // try cleanup outdated logs per hour
-// attention: do not promise all them, that's meaningless, just fire and forget
-setInterval(cleanup, 3600_000).unref();
+setInterval(() => Object.entries(loggers).map(([_, logger]) => logger.cleanup()), 3600_000).unref();
 
+// this flush log is more proper
+process.on('exit', () => {
+    Object.entries(loggers).map(([_, logger]) => logger.deinit());
+});
 // log and abort for all uncaught exceptions and unhandled rejections
 process.on('uncaughtException', async error => {
     console.log('uncaught exception', error);
     try {
-        await write(`uncaught exception: ${error.message}`);
+        await log.error(`uncaught exception: ${error.message}`);
     } catch {
         // nothing, this happens when logger initialize have error
     }
@@ -96,7 +137,7 @@ process.on('uncaughtException', async error => {
 process.on('unhandledRejection', async reason => {
     console.log('unhandled rejection', reason);
     try {
-        await write(`unhandled rejection: ${reason}`);
+        await log.error(`unhandled rejection: ${reason}`);
     } catch {
         // nothing, this happens when logger initialize have error
     }

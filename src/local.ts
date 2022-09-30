@@ -30,7 +30,8 @@ async function getLiveStatus(): Promise<number> {
     // body.data.room_info.cover: cover image url
     // body.data.room_info.area_name, parent_arena_name
     console.log(`[${body.data.anchor_info.base_info.uname}][${body.data.room_info.title}] ${
-        body.data.room_info.live_status ? dayjs.unix(body.data.room_info.live_start_time).format('YYYY-MM-DD HH:mm:ss') : 'NOT LIVE'}`);
+        // attention: 0 for not live, 1 for live, 2 for play video in loop
+        body.data.room_info.live_status == 1 ? dayjs.unix(body.data.room_info.live_start_time).format('YYYY-MM-DD HH:mm:ss') : 'NOT LIVE'}`);
     return body.data.room_info.room_id;
 }
 

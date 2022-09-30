@@ -87,7 +87,11 @@ class Logger {
         if (!this.handle) {
             this.init();
         }
-        fs.writeSync(this.handle, `[${dayjs.utc().format('HH:mm:ss')}] ${content}\n`);
+        if (this.options.postfix == 'N') {
+            fs.writeSync(this.handle, content + '\n');
+        } else {
+            fs.writeSync(this.handle, `[${dayjs.utc().format('HH:mm:ss')}] ${content}\n`);
+        }
         if (this.notFlushCount + 1 > this.options.flushByCount) {
             this.flush();
         } else {
@@ -99,23 +103,26 @@ class Logger {
     }
 }
 
-type Level = 'info' | 'error' | 'message';
+type Level = 'info' | 'error' | 'debug' | 'notice';
 const levels: Record<Level, LoggerOptions> = {
     // normal log
     info: { postfix: 'I', flushByCount: 11, flushByInterval: 600, reserveDays: 7 },
     // error log, flush immediately, in that case, flush by interval is not used
-    error: { postfix: 'X', flushByCount: 0, flushByInterval: 0, reserveDays: 7 },
-    // message log, is written frequently, so flush by count is kind of large
-    message: { postfix: 'M', flushByCount: 101, flushByInterval: 600, reserveDays: 7 },
+    error: { postfix: 'E', flushByCount: 0, flushByInterval: 0, reserveDays: 7 },
+    // debug log, raw message and transformed message, is written frequently, so flush by count is kind of large
+    debug: { postfix: 'D', flushByCount: 101, flushByInterval: 600, reserveDays: 7 },
+    // notice log, chat item kind except danmu and superchat,
+    // this is actually intended as persist log, I may be move them out occassionally
+    notice: { postfix: 'N', flushByCount: 101, flushByInterval: 600, reserveDays: 180 },
 };
 
 // @ts-ignore ts does not understand object.entries, actually it does not understand reduce<>(..., {}), too
-const loggers: Record<Level, Logger> = Object.fromEntries(Object.entries(levels)
-    .filter(([level]) => level != 'message' || ('YABAI_DEBUG' in process.env)).map(([level, options]) => [level, new Logger(options)]));
+const loggers: Record<Level, Logger> =
+    Object.fromEntries(Object.entries(levels).map(([level, options]) => [level, new Logger(options)]));
 
 // @ts-ignore again
-export const log: Record<Level, (content: string) => Promise<void>> =
-    Object.fromEntries(Object.entries(loggers).map(([level, logger]) => [level, logger.write.bind(logger)]));
+export const log: Record<Level, (content: string) => void> = Object.fromEntries(Object.entries(loggers)
+    .map(([level, logger]) => [level, level == 'debug' && !('YABAI_DEBUG' in process.env) ? (() => {}) : logger.write.bind(logger)]));
 
 // try cleanup outdated logs per hour
 setInterval(() => Object.entries(loggers).map(([_, logger]) => logger.cleanup()), 3600_000).unref();

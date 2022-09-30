@@ -1,20 +1,36 @@
-import * as EventEmitter from 'events';
 import * as fs from 'fs';
 import { brotliDecompressSync, inflateSync } from 'zlib';
+import * as dayjs from 'dayjs';
 import fetch from 'node-fetch';
 import { WebSocket } from 'ws';
 import { log } from './logger';
+import { Database } from './database';
 
 // live chat client
 // how to interact with wacq and fine and display realtime message on web page TBD
 
-export interface ChatMessage {
+type ItemKind =
+    | 'danmu' // available fields: user, text, emoticon, medal
+    | 'superchat' // fields: user, text, price, medal
+    | 'gift' // fields: user, gift, price/coins, medal (without medal owner)
+    | 'entry' // fields: user
+    | 'start'
+    // following item's time is inferred
+    | 'stop'
+    | 'change-title' // fields: text
+    | 'fans-amount' // fields: amount
+    | 'fans-club-amount' // fields: amount
+    | 'watched-amount' // fields: amount
+    | 'interacted-amount' // fields: amount
+
+interface ChatItem {
     time: number, // timestamp
-    userId: number,
-    userName: string,
-    text?: string, // text for danmu or superchat
+    kind: ItemKind,
+    userId?: number,
+    userName?: string, // may be incomplete or not available for kind=entry
+    text?: string, // text for danmu or superchat, or change title
     giftAction?: string, // use as ${giftaction}${giftamount}{$giftname}
-    giftAmount?: number,
+    amount?: number, // amount for gift, or kind with 'amount'
     giftName?: string, // maybe captain; empty for superchat, although it can be 'SUPERCHAT'
     price?: number, // super chat price or charged gift price in Chinese Yuan
     coins?: number, // non charged gift price, in 'silver melon seed'
@@ -29,24 +45,13 @@ export interface ChatMessage {
     memberOwnerUserId?: number, // that liver's user id, may be not available for some type of messages (SEND_GIFT)
 }
 
-export type ChatNotice = 
-    | { kind: 'start', time: number }
-    | { kind: 'stop', time: number } // this time is inferred
-    | { kind: 'change-title', time: number, title: string } // this time is inferred
-    | { kind: 'fans-amount', time: number, value: number } // this time is inferred
-    | { kind: 'fans-club-amount', time: number, value: number } // this time is inferred
-    | { kind: 'wacthed-amount', time: number, value: number } // this time is inferred
-    | { kind: 'interacted-amount', time: number, value: number } // this time is inferred
-    | { kind: 'enter', time: number, userId: number, userName?: string } // this username may be incomplete or unavailable
+class ChatClient {
 
-export class ChatClient extends EventEmitter {
-
-    private connection: WebSocket;
-    public constructor(private readonly realId: number) {
-        super();
-        this.connection = null;
-        this.nonTimedItems = [];
-    }
+    private connection: WebSocket = null;
+    public constructor(
+        private readonly db: Database,
+        private readonly realId: number,
+    ) {}
 
     // caller to prevent reentry and timeout abort
     // this is just a more graceful close (immediate resolve or resolve on close), so should be ok for reconnect
@@ -68,170 +73,251 @@ export class ChatClient extends EventEmitter {
         });
     }
 
-    // assign time to non timed message once a timed message is received, should be ok for current knonw non timed messages
-    private readonly nonTimedItems: { raw: any, normalized: any, eventName: string }[];
-    private handleNormalized(raw: any, normalized: any, eventName: string) {
-        if (normalized.time) {
-            // no need to wait on log
-            log.message(JSON.stringify(raw));
-            log.message(JSON.stringify(normalized));
-            this.emit(eventName, normalized);
-            for (const item of this.nonTimedItems) {
-                item.normalized.time = normalized.time;
-                log.message(JSON.stringify(item.raw));
-                log.message(JSON.stringify(item.normalized));
-                this.emit(item.eventName, item.normalized);
+    // CREATE TABLE `Message2210` (
+    //    `Time` TIMESTAMP NOT NULL,
+    //    -- message does not need time to differ danmu/superchat
+    //    `UserId` BIGINT NOT NULL,
+    //    `UserName` VARCHAR(100) NOT NULL, -- don't know the actual limit
+    //    `Manager` BIT(1) NOT NULL DEFAULT 0,
+    //    `Text` VARCHAR(500) NOT NULL, -- don't know the actual limit, at least it is dynamic
+    //    `Emoticon` VARCHAR(50) NULL,
+    //    `Price` INT NULL, -- the max amount I have ever seen is 100_000rmb, so int should be ok
+    //     -- nullable boolean does not have much meaning, 0 for no medal info
+    //    `MemberActive` BIT(1) NOT NULL DEFAULT 0,
+    //    `MemberLevel` TINYINT NULL,
+    //    `MemberLevelColor` INT NULL,
+    //    `MemberName` VARCHAR(20) NULL, -- it seems to be max 3 chinese characters (9 bytes), so use 20
+    //    `MemberOwnerName` VARCHAR(100) NULL,
+    //    `MemberOwnerRoomId` BIGINT NULL,
+    //    `MemberOwnerUserId` BIGINT NULL
+    // );
+    // the number of question mark will be really many if not generated from this array automatically
+    private static DatabaseColumnNames = ['Time', 'UserId', 'UserName', 'Manager', 'Text', 'Emoticon', 'Price',
+        'MemberActive', 'MemberLevel', 'MemberLevelColor', 'MemberName', 'MemberOwnerName', 'MemberOwnerRoomId', 'MemberOwnerUserId'];
+
+    // // this is how I watch danmu before ui exists, don't forget the hard time (?)
+    // // watch -n1 'cat logs/20220930M.log | grep -v cmd | grep -v kind | grep -v 投喂 | tail -40 | cut -c 50-140'
+    private async save(item: ChatItem) {
+
+        if (item.kind != 'danmu' && item.kind != 'superchat') {
+            log.notice(JSON.stringify(item));
+            return;
+        }
+
+        // time is kind of external input, validate it more strictly
+        if (!Number.isFinite(item.time)) {
+            log.error('cannot save item because time is not number ' + JSON.stringify(item));
+            return;
+        }
+        const postfix = dayjs.unix(item.time).utc().format('YYMM');
+
+        // dayjs seems to give 19700101 on rediculous input value and say it is valid, so reject 7001
+        if (postfix == '7001') {
+            log.error('cannot save item because time is invalid ' + JSON.stringify(item));
+            return;
+        }
+
+        const tableName = '`Message' + postfix + '`';
+        const columnNames = ChatClient.DatabaseColumnNames.map(c => '`' + c + '`').join(',');
+        const questions = ChatClient.DatabaseColumnNames.map(() => '?').join(',');
+
+        if (item.kind == 'danmu' || item.kind == 'superchat') {
+            // cannot use undefined for 'NOT NULL DEFAULT 0'
+            item.manager = item.manager || false;
+            item.memberActive = item.memberActive || false;
+            try {
+                await this.db.query(`INSERT INTO ${tableName} (${columnNames}) VALUES (${questions});`,
+                    // although I used timestamp everywhere,
+                    // mysql (not node mysql package) require insert statement to use formatted datetime not a number
+                    dayjs.unix(item.time).utc().format('YYYY-MM-DD HH:mm:ss'),
+                    // @ts-ignore this is a lot of columns again if written strong-typely
+                    ...ChatClient.DatabaseColumnNames.slice(1).map(c => item[c.charAt(0).toLowerCase() + c.substring(1)]));
+            } catch (error) {
+                log.error(`failed to save to database ${error} ${JSON.stringify(item)}`);
             }
-            this.nonTimedItems.splice(0, this.nonTimedItems.length);
-        } else {
-            this.nonTimedItems.push({ raw, normalized, eventName });
         }
     }
 
-    private handleNotice(raw: any) {
+    // use current time for non timed items
+    // but restrict them with next timed item to make items monotonic
+    // don't need to restrict them with previous timed item because it is not likely that server send me a "future" item
+    private readonly inferredTimeItems: { raw: any, cooked: ChatItem }[] = [];
 
+    // use cooked.time=0 to indicate time need infer,
+    // // this cool type annotation limit this parameter to be ChatMessage when kind is message and vice versa
+    // // so that the notice construction does not need explicit type assersion to track property usage (F12)
+    private finishTransform(raw: any, cooked: ChatItem) {
+        if (cooked.time) {
+            log.debug(JSON.stringify(raw));
+            log.debug(JSON.stringify(cooked));
+            this.save(cooked);
+            for (const item of this.inferredTimeItems) {
+                if (item.cooked.time > cooked.time) {
+                    item.cooked.time = cooked.time;
+                }
+                log.debug(JSON.stringify(item.raw));
+                log.debug(JSON.stringify(item.cooked));
+                this.save(item.cooked);
+            }
+            this.inferredTimeItems.splice(0, this.inferredTimeItems.length);
+        } else {
+            cooked.time = dayjs.utc().unix();
+            this.inferredTimeItems.push({ raw, cooked });
+        }
+    }
+
+    // assert to prevent read property on undefined error, get undefined value is not checked
+    private assertStructure(raw: any, condition: boolean) {
+        if (!condition) {
+            log.error(`unrecognized ${raw.cmd} ${JSON.stringify(raw)}`);
+        }
+        return condition;
+    }
+
+    private transform(raw: any) {
         if (raw.cmd == 'DANMU_MSG') {
-            const message: ChatMessage = {
+            if (!this.assertStructure(raw,
+                raw.info
+                && Array.isArray(raw.info)
+                && Array.isArray(raw.info[0])
+                && Array.isArray(raw.info[2])
+                && Array.isArray(raw.info[3])
+                && raw.info[9]
+            )) { return; }
+
+            const item: ChatItem = {
                 time: raw.info[9].ts,
+                kind: 'danmu',
                 userId: raw.info[2][0],
                 userName: raw.info[2][1],
+                // I don't understand how they send a bare CR in danmu message
                 text: raw.info[1].trim().replaceAll('\r', '').replaceAll('\n', ''),
                 emoticon: raw.info[0][13].emoticon_unique,
             }
             if (raw.info[2][2] != 0) {
-                message.manager = true;
+                item.manager = true;
             }
             if (raw.info[3].length) {
-                message.memberActive = raw.info[3][11];
-                message.memberLevel = raw.info[3][0];
-                message.memberLevelColor = raw.info[3][4];
-                message.memberName = raw.info[3][1];
-                message.memberOwnerName = raw.info[3][2];
-                message.memberOwnerRoomId = raw.info[3][3];
-                message.memberOwnerUserId = raw.info[3][12];
+                item.memberActive = raw.info[3][11];
+                item.memberLevel = raw.info[3][0];
+                item.memberLevelColor = raw.info[3][4];
+                item.memberName = raw.info[3][1];
+                item.memberOwnerName = raw.info[3][2];
+                item.memberOwnerRoomId = raw.info[3][3];
+                item.memberOwnerUserId = raw.info[3][12];
             }
-            this.handleNormalized(raw, message, 'message');
+            this.finishTransform(raw, item);
 
         } else if (raw.cmd == 'WATCHED_CHANGE') {
-            const notice: ChatNotice = {
-                time: 0,
-                kind: 'wacthed-amount',
-                value: raw.data.num,
-            };
-            this.handleNormalized(raw, notice, 'notice');
+            if (!this.assertStructure(raw, raw.data)) { return; }
+            this.finishTransform(raw, { time: 0, kind: 'watched-amount', amount: raw.data.num });
 
         } else if (raw.cmd == 'ONLINE_RANK_COUNT') {
-            const notice: ChatNotice = {
-                time: 0,
-                kind: 'interacted-amount',
-                value: raw.data.count,
-            }
-            this.handleNormalized(raw, notice, 'notice');
+            if (!this.assertStructure(raw, raw.data)) { return; }
+            this.finishTransform(raw, { time: 0, kind: 'interacted-amount', amount: raw.data.count });
 
         } else if (raw.cmd == 'ENTRY_EFFECT') {
+            if (!this.assertStructure(raw,
+                raw.data 
+                && typeof raw.data.copy_writing == 'string'
+            )) { return; }
             const startIndex = raw.data.copy_writing.indexOf('<%');
             const endIndex = raw.data.copy_writing.indexOf('%>');
-            // ignore if unrecognized structure, but this seems never happen
-            if (startIndex != -1 && endIndex != -1) {
-                const notice: ChatNotice = {
-                    time: Math.ceil(raw.data.trigger_time / 1000_000_000),
-                    kind: 'enter',
-                    userId: raw.data.uid,
-                    userName: raw.data.copy_writing.substring(startIndex + 2, endIndex),
-                };
-                this.handleNormalized(raw, notice, 'notice');
-            }
+            if (!this.assertStructure(raw,
+                startIndex != -1 && endIndex != -1
+            )) { return; }
+            this.finishTransform(raw, {
+                time: Math.ceil(raw.data.trigger_time / 1000_000_000),
+                kind: 'entry',
+                userId: raw.data.uid,
+                userName: raw.data.copy_writing.substring(startIndex + 2, endIndex),
+            });
+
         } else if (raw.cmd == 'SUPER_CHAT_MESSAGE') {
-            const message: ChatMessage = {
+            if (!this.assertStructure(raw,
+                raw.data
+                && raw.data.user_info
+            )) { return; }
+            const item: ChatItem = {
                 time: raw.data.start_time,
+                kind: 'superchat',
                 userId: raw.data.uid,
                 userName: raw.data.user_info.uname,
                 text: raw.data.message,
                 price: raw.data.price,
             };
             if (raw.data.manager != 0) {
-                message.manager = true;
+                item.manager = true;
             }
             if (raw.data.medal_info) {
-                message.memberActive = raw.data.medal_info.is_lighted;
-                message.memberLevel = raw.data.medal_info.medal_level;
-                message.memberLevelColor = raw.data.medal_info.medal_color;
-                message.memberName = raw.data.medal_info.anchor_name;
-                message.memberOwnerName = raw.data.medal_info.anchor_uname;
-                message.memberOwnerRoomId = raw.data.medal_info.anchor_roomid;
-                message.memberOwnerUserId = raw.data.medal_info.target_id;
+                if (!this.assertStructure(raw, 
+                    typeof raw.data.medal_info.medal_color == 'string'
+                    && raw.data.medal_info.medal_color.startsWith('#')
+                    && raw.data.medal_info.medal_color.length <= 7
+                )) { return; }
+                item.memberActive = raw.data.medal_info.is_lighted;
+                item.memberLevel = raw.data.medal_info.medal_level;
+                item.memberLevelColor = parseInt(raw.data.medal_info.medal_color.substring(1), 16);
+                item.memberName = raw.data.medal_info.medal_name;
+                item.memberOwnerName = raw.data.medal_info.anchor_uname;
+                item.memberOwnerRoomId = raw.data.medal_info.anchor_roomid;
+                item.memberOwnerUserId = raw.data.medal_info.target_id;
             }
-            this.handleNormalized(raw, message, 'message');
+            this.finishTransform(raw, item);
 
         } else if (raw.cmd == 'SEND_GIFT') {
-            const message: ChatMessage = {
+            if (!this.assertStructure(raw, 
+                raw.data
+                && ['silver', 'gold'].includes(raw.data.coin_type)
+            )) { return; }
+            const item: ChatItem = {
                 time: raw.data.start_time,
+                kind: 'gift',
                 userId: raw.data.uid,
                 userName: raw.data.uname,
                 giftAction: raw.data.action,
-                giftAmount: raw.data.num,
+                amount: raw.data.num,
                 giftName: raw.data.giftName,
-                price: raw.data.coin_type == 'silver' ? 0 : Math.ceil(raw.data.coin_amount / 1000),
+                price: raw.data.coin_type == 'silver' ? 0 : Math.ceil(raw.data.total_coin / 1000),
                 coins: raw.data.coin_type == 'silver' ? raw.data.total_coin : 0,
             };
-            if (raw.data.medal_info) {
-                message.memberActive = raw.data.medal_info.is_lighted;
-                message.memberLevel = raw.data.medal_info.medal_level;
-                message.memberLevelColor = raw.data.medal_info.medal_color;
-                message.memberName = raw.data.medal_info.anchor_name;
-                message.memberOwnerName = raw.data.medal_info.anchor_uname;
-                message.memberOwnerRoomId = raw.data.medal_info.anchor_roomid;
-                message.memberOwnerUserId = raw.data.medal_info.target_id;
-            }
-            this.handleNormalized(raw, message, 'message');
+            // send gift have same raw.data.medal_info like superchat, but they are discarded because
+            // - I decide to put not interested items in a smaller table (at least no medal info)
+            // - they are kind of too many (one 辣条 is one message)
+            // - guard buy also does not have medal info
+            // if (raw.data.medal_info) {
+            //     ...
+            // }
+            this.finishTransform(raw, item);
 
         } else if (raw.cmd == 'GUARD_BUY') {
-            const message: ChatMessage = {
+            if (!this.assertStructure(raw, raw.data)) { return; }
+            this.finishTransform(raw, {
                 time: raw.data.start_time,
+                kind: 'gift',
                 userId: raw.data.uid,
                 userName: raw.data.username,
-                giftAmount: raw.data.num,
+                amount: raw.data.num,
                 giftName: raw.data.gift_name,
-            };
-            this.handleNormalized(raw, message, 'message');
+            });
 
         } else if (raw.cmd == 'ROOM_REAL_TIME_MESSAGE_UPDATE') {
-            const notice1: ChatNotice = {
-                time: 0,
-                kind: 'fans-amount',
-                value: raw.data.fans,
-            }
-            const notice2: ChatNotice = {
-                time: 0,
-                kind: 'fans-club-amount',
-                value: raw.data.fans_club,
-            }
-            this.handleNormalized(raw, notice1, 'notice');
-            this.handleNormalized(raw, notice2, 'notice');
+            if (!this.assertStructure(raw, raw.data)) { return; }
+            this.finishTransform(raw, { time: 0, kind: 'fans-amount', amount: raw.data.fans });
+            this.finishTransform(raw, { time: 0, kind: 'fans-club-amount', amount: raw.data.fans_club });
 
         } else if (raw.cmd == 'ROOM_CHANGE') {
-            const notice: ChatNotice = {
-                time: 0,
-                kind: 'change-title',
-                title: raw.data.title,
-            };
-            this.handleNormalized(raw, notice, 'notice');
+            if (!this.assertStructure(raw, raw.data)) { return; }
+            this.finishTransform(raw, { time: 0, kind: 'change-title', amount: raw.data.title });
 
         } else if (raw.cmd == 'LIVE') {
-            // there seems to be 2 live notices, use the one with time
             if (raw.live_time) {
-                const notice: ChatNotice = {
-                    time: raw.live_time,
-                    kind: 'start',
-                };
-                this.handleNormalized(raw, notice, 'notice');
+                this.finishTransform(raw, { time: raw.live_time, kind: 'start' });
+            } else {
+                // there seems to be 2 live notices, use the one with time and discard another
             }
         } else if (raw.cmd == 'PREPARING') {
-            const notice: ChatNotice = {
-                time: 0,
-                kind: 'stop',
-            };
-            this.handleNormalized(raw, notice, 'notice');
+            this.finishTransform(raw, { time: 0, kind: 'stop' });
 
         } else if (
             raw.cmd == 'HOT_RANK_CHANGED' // boring rank
@@ -241,6 +327,7 @@ export class ChatClient extends EventEmitter {
             || raw.cmd == 'ONLINE_RANK_TOP3' // boring rank
             || raw.cmd == 'HOT_RANK_SETTLEMENT_V2' // kind of boring rank
             || raw.cmd == 'HOT_RANK_SETTLEMENT' // boring rank
+            || raw.cmd == 'COMMON_NOTICE_DANMAKU' // boring rank
             || raw.cmd == 'WIDGET_BANNER' // boring banner
             || raw.cmd == 'ACTIVITY_BANNER_CHANGE' // boring banner
             || raw.cmd == 'ACTIVITY_BANNER_CHANGE_V2' // boring banner
@@ -254,15 +341,18 @@ export class ChatClient extends EventEmitter {
             || raw.cmd == 'COMBO_SEND' // appear together with normal gift send, does not affect total amount
             || raw.cmd == 'SUPER_CHAT_MESSAGE_JPN' // appear together with normal superchat, seems duplicate info
             || raw.cmd == 'LIVE_INTERACTIVE_GAME' // appear together with normal danmu, info already included in that
-            || (raw.cmd == 'NOTICE_MSG' && raw.msg_type == 6) // boring other live room
+            || raw.cmd == 'GUARD_HONOR_THOUSAND' // other liver's thousand guard notice
+            || raw.cmd == 'LIVE_MULTI_VIEW_CHANGE' // unknown data
             || (raw.cmd == 'NOTICE_MSG' && raw.msg_type == 2) // boring other live room
             || (raw.cmd == 'NOTICE_MSG' && raw.msg_type == 3) // appear together with guard_buy, duplicate info, also boring other live room
+            || (raw.cmd == 'NOTICE_MSG' && raw.msg_type == 4) // boring other live room
+            || (raw.cmd == 'NOTICE_MSG' && raw.msg_type == 6) // boring other live room
         ) {
             // discard because of too many, or meaningless, or both
             return;
 
         } else {
-            log.message('!!!' + JSON.stringify(raw));
+            log.error('unrecognized notice: ' + JSON.stringify(raw));
         }
     }
 
@@ -405,7 +495,7 @@ export class ChatClient extends EventEmitter {
                         clearTimeout(verifyTimeout);
                         sendHeartbeat();
                     } else if (chunkType == 5) {
-                        this.handleNotice(json);
+                        this.transform(json);
                     } else {
                         log.error(`invalid packet chunk#${index}, unknown chunk type, ${packet.subarray(offset, offset + 16)}`);
                     }
@@ -420,8 +510,8 @@ export class ChatClient extends EventEmitter {
     }
 }
 
-const config = JSON.parse(fs.readFileSync('config.json', { encoding: 'utf-8' }));
-const client = new ChatClient(config.roomId);
+const config = JSON.parse(fs.readFileSync('config.json', 'utf-8'));
+const client = new ChatClient(new Database(config.database), config.roomId);
 
 let shuttingdown = false;
 function shutdown() {

@@ -1,4 +1,5 @@
 import * as mysql from 'mysql';
+import { log } from './logger';
 
 // promisify mysql functions
 
@@ -25,6 +26,19 @@ export class Database {
         // you cannot put function in json so this is ok
         config.typeCast = myTypeCast;
         this.pool = mysql.createPool(config);
+    }
+
+    public close(): Promise<void> {
+        return new Promise(resolve => {
+            // document says this will end the connections regardless of
+            // whether error happens, so simply log and resolve for error
+            this.pool.end(error => {
+                if (error) {
+                    log.error(`failed to close pool: ${error}`);
+                }
+                resolve();
+            });
+        });
     }
 
     // basic usage

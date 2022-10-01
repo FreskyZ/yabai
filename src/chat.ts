@@ -1,4 +1,6 @@
-import * as fs from 'fs';
+import * as fs from 'fs/promises';
+import * as fsnp from 'fs';
+import * as path from 'path';
 import { brotliDecompressSync, inflateSync } from 'zlib';
 import * as dayjs from 'dayjs';
 import fetch from 'node-fetch';
@@ -9,31 +11,43 @@ import { Database } from './database';
 // live chat client
 // how to interact with wacq and fine and display realtime message on web page TBD
 
-type ItemKind =
-    | 'danmu' // available fields: user, text, emoticon, medal
-    | 'superchat' // fields: user, text, price, medal
-    | 'gift' // fields: user, gift, price/coins, medal (without medal owner)
-    | 'entry' // fields: user
+// it is strange to put other as first item in file ()
+type MessageKind =
+    // the kind with many information and will save to db
+    | 'message'
+type OtherItemKind =
+    // this is the only non message kind with many fields,
+    // the number of text part is still 2 if regarded as comma separated,
+    // but internally it uses plus (+) to keep things still structural (can be read by program)
+    // text: `${userId}+${userName}`,`${action}+${amount}+${giftname}+${price}+${coins}` 
+    | 'gift'
+    // and this split from gift
+    // text: `${userId}+${userName}`,`${amount}+${giftname}+${price}`
+    | 'guard'
+    // text: userId,userName(maybe incomplete, but the userid is correct)
+    | 'entry'
+    // text: (empty),(empty)
     | 'start'
-    // following item's time is inferred
+    // time is inferred, text: (empty),(empty)
     | 'stop'
-    | 'change-title' // fields: text
-    | 'fans-amount' // fields: amount
-    | 'fans-club-amount' // fields: amount
-    | 'watched-amount' // fields: amount
-    | 'interacted-amount' // fields: amount
+    // time is inferred, text: (empty),new-title
+    | 'change-title'
+    // time is inferred, text: new-value,(empty)
+    | 'fans-amount'
+    // time is inferred, text: new-value,(empty)
+    | 'fans-club-amount'
+    // time is inferred, text: new-value,(empty)
+    | 'watched-amount'
+    // time is inferred, text: new-value,(empty)
+    | 'interacted-amount'
 
-interface ChatItem {
+type ChatItem = {
     time: number, // timestamp
-    kind: ItemKind,
-    userId?: number,
-    userName?: string, // may be incomplete or not available for kind=entry
-    text?: string, // text for danmu or superchat, or change title
-    giftAction?: string, // use as ${giftaction}${giftamount}{$giftname}
-    amount?: number, // amount for gift, or kind with 'amount'
-    giftName?: string, // maybe captain; empty for superchat, although it can be 'SUPERCHAT'
+    kind: MessageKind,
+    userId: number,
+    userName: string, // may be incomplete or not available for kind=entry
+    text: string, // text for danmu or superchat, or other kinds' remaining part comma separated
     price?: number, // super chat price or charged gift price in Chinese Yuan
-    coins?: number, // non charged gift price, in 'silver melon seed'
     emoticon?: string, // application custom emoticon, include common or liver specific
     manager?: boolean, // is room manager
     memberActive?: boolean, // member is now darken (not displayed) if inactive (not interactive with that liver)
@@ -43,13 +57,178 @@ interface ChatItem {
     memberOwnerName?: string, // that liver's name, may be not available for some type of messages (SEND_GIFT)
     memberOwnerRoomId?: number, // that liver's room id, this is real id
     memberOwnerUserId?: number, // that liver's user id, may be not available for some type of messages (SEND_GIFT)
+} | {
+    time: number,
+    kind: OtherItemKind,
+    text: string,
 }
 
-class ChatClient {
+// store received items,
+// also handle swtich file for noticelog and swtich table for messagelog
+class Storage {
+
+    // similar to logger, except no cleanup
+    private fileNotFlushCount: number = 0;
+    private fileNotFlushTimeout: NodeJS.Timeout = null;
+    private filetime: dayjs.Dayjs = dayjs.utc();
+    private file: fs.FileHandle = null;
+    public constructor(private readonly db: Database) {
+        setInterval(this.createSplitTable.bind(this), 3600_000);
+    }
+
+    // close file and close connection
+    public async close() {
+        await Promise.all([
+            (async () => {
+                if (this.file) {
+                    await this.file.sync();
+                    if (this.fileNotFlushTimeout) {
+                        clearTimeout(this.fileNotFlushTimeout);
+                    }
+                    await this.file.close();
+                }
+            })(),
+            this.db.close(),
+        ]);
+    }
+
+    private async openNotice() {
+        await fs.mkdir('notice', { recursive: true });
+        this.file = await fs.open(path.resolve('notice', `${this.filetime.format('YYYYMMDD')}.csv`), 'a');
+    }
+
+    private async flushNotice() {
+        // no if this.handle: according to flush strategy,
+        // this function will not be called with this.handle == 0
+
+        this.fileNotFlushCount = 0;
+        await this.file.sync();
+
+        if (this.fileNotFlushTimeout) {
+            // clear timeout incase this flush is triggered by write
+            // does not setup new timeout because now not flush count is 0
+            clearTimeout(this.fileNotFlushTimeout);
+            this.fileNotFlushTimeout = null;
+        }
+        // swtich file is not here, all notice should sit precisely in its date file
+    }
+
+    private async saveNotice(time: number, kind: OtherItemKind, text: string) {
+        if (!this.file) {
+            await this.openNotice();
+        }
+        await this.file.writeFile(`${time},${kind},${text}\n`);
+
+        // switch file is here because all notice should sit precisely in its date file
+        if (!dayjs.unix(time).utc().isSame(this.filetime, 'date')) {
+            this.filetime = dayjs.utc();
+            await this.file.close();
+            await this.openNotice();
+            this.fileNotFlushCount = null;
+        } else if (this.fileNotFlushCount > 101) {
+            await this.flushNotice();
+        } else {
+            this.fileNotFlushCount += 1;
+            if (this.fileNotFlushCount == 1) {
+                this.fileNotFlushTimeout = setTimeout(() => this.flushNotice(), 600_000);
+            }
+        }
+    }
+
+    private async createSplitTable() {
+        const now = dayjs.utc();
+        // create next table at last date of month
+        if (now.isSame(now.endOf('month'), 'date')) {
+            // // will now.add(1) receive rediculous result?
+            const postfix = now.add(1, 'month').format('YYMM');
+            try {
+                this.db.query(`
+                CREATE TABLE IF NOT EXISTS \`Message${postfix}\` (
+                   \`Time\` TIMESTAMP NOT NULL,
+                   -- message does not need time to differ danmu/superchat
+                   \`UserId\` BIGINT NOT NULL,
+                   \`UserName\` VARCHAR(100) NOT NULL, -- don't know the actual limit
+                   \`Text\` VARCHAR(500) NOT NULL, -- don't know the actual limit, at least it is dynamic
+                   \`Emoticon\` VARCHAR(50) NULL,
+                   \`Price\` INT NULL, -- the max amount I have ever seen is 100_000rmb, so int should be ok
+                   \`Manager\` BIT(1) NOT NULL DEFAULT 0,
+                    -- nullable boolean does not have much meaning, 0 for no medal info
+                   \`MemberActive\` BIT(1) NOT NULL DEFAULT 0,
+                   \`MemberLevel\` TINYINT NULL,
+                   \`MemberLevelColor\` INT NULL,
+                   \`MemberName\` VARCHAR(20) NULL, -- it seems to be max 3 chinese characters (9 bytes), so use 20
+                   \`MemberOwnerName\` VARCHAR(100) NULL,
+                   \`MemberOwnerRoomId\` BIGINT NULL,
+                   \`MemberOwnerUserId\` BIGINT NULL
+                );`);
+            } catch (error) {
+                log.error(`create table Message${postfix} error ${error}`);
+            }
+        }
+    }
+
+    // the number of question mark will be really many if not generated from this array automatically
+    private static DatabaseColumnNames = ['Time', 'UserId', 'UserName', 'Manager', 'Text', 'Emoticon', 'Price',
+        'MemberActive', 'MemberLevel', 'MemberLevelColor', 'MemberName', 'MemberOwnerName', 'MemberOwnerRoomId', 'MemberOwnerUserId'];
+
+    private async saveMessage(item: ChatItem) {
+        if (item.kind != 'message') { return; } // this makes tsc understand kind=message
+
+        // time is kind of external input, validate it more strictly
+        if (!Number.isFinite(item.time)) {
+            log.error('cannot save item because time is not number ' + JSON.stringify(item));
+            return;
+        }
+
+        const postfix = dayjs.unix(item.time).utc().format('YYMM');
+        // dayjs seems to give 19700101 on rediculous input value and say it is valid, so reject 7001
+        if (postfix == '7001') {
+            log.error('cannot save item because time is invalid ' + JSON.stringify(item));
+            return;
+        }
+
+        const tableName = '`Message' + postfix + '`';
+        const columnNames = Storage.DatabaseColumnNames.map(c => '`' + c + '`').join(',');
+        const questions = Storage.DatabaseColumnNames.map(() => '?').join(',');
+
+        // cannot use undefined for 'NOT NULL DEFAULT 0'
+        item.manager = item.manager || false;
+        item.memberActive = item.memberActive || false;
+        try {
+            await this.db.query(`INSERT INTO ${tableName} (${columnNames}) VALUES (${questions});`,
+                // although I used timestamp everywhere,
+                // mysql (not node mysql package) require insert statement to use formatted datetime not a number
+                dayjs.unix(item.time).utc().format('YYYY-MM-DD HH:mm:ss'),
+                // @ts-ignore this is a lot of columns again if written strong-typely
+                ...Storage.DatabaseColumnNames.slice(1).map(c => item[c.charAt(0).toLowerCase() + c.substring(1)]));
+        } catch (error) {
+            log.error(`failed to save to database ${error} ${JSON.stringify(item)}`);
+        }
+    }
+
+    // // this is how I watch danmu before ui exists, don't forget the hard time (?)
+    // // watch -n1 'cat logs/20220930M.log | grep -v cmd | grep -v kind | grep -v 投喂 | tail -40 | cut -c 50-140'
+    public async save(item: ChatItem) {
+
+        if (item.kind == 'message') {
+            await this.saveMessage(item);
+        } else {
+            await this.saveNotice(item.time, item.kind, item.text);
+            // insert special message for start and stop live
+            if (item.kind == 'start') {
+                await this.saveMessage({ time: item.time, kind: 'message', userId: 0, userName: '0', text: 'LIVE' });
+            } else if (item.kind == 'stop') {
+                await this.saveMessage({ time: item.time, kind: 'message', userId: 0, userName: '0', text: 'NOTLIVE' });
+            }
+        }
+    }
+}
+
+class Client {
 
     private connection: WebSocket = null;
     public constructor(
-        private readonly db: Database,
+        public readonly store: Storage,
         private readonly realId: number,
     ) {}
 
@@ -73,71 +252,6 @@ class ChatClient {
         });
     }
 
-    // CREATE TABLE `Message2210` (
-    //    `Time` TIMESTAMP NOT NULL,
-    //    -- message does not need time to differ danmu/superchat
-    //    `UserId` BIGINT NOT NULL,
-    //    `UserName` VARCHAR(100) NOT NULL, -- don't know the actual limit
-    //    `Manager` BIT(1) NOT NULL DEFAULT 0,
-    //    `Text` VARCHAR(500) NOT NULL, -- don't know the actual limit, at least it is dynamic
-    //    `Emoticon` VARCHAR(50) NULL,
-    //    `Price` INT NULL, -- the max amount I have ever seen is 100_000rmb, so int should be ok
-    //     -- nullable boolean does not have much meaning, 0 for no medal info
-    //    `MemberActive` BIT(1) NOT NULL DEFAULT 0,
-    //    `MemberLevel` TINYINT NULL,
-    //    `MemberLevelColor` INT NULL,
-    //    `MemberName` VARCHAR(20) NULL, -- it seems to be max 3 chinese characters (9 bytes), so use 20
-    //    `MemberOwnerName` VARCHAR(100) NULL,
-    //    `MemberOwnerRoomId` BIGINT NULL,
-    //    `MemberOwnerUserId` BIGINT NULL
-    // );
-    // the number of question mark will be really many if not generated from this array automatically
-    private static DatabaseColumnNames = ['Time', 'UserId', 'UserName', 'Manager', 'Text', 'Emoticon', 'Price',
-        'MemberActive', 'MemberLevel', 'MemberLevelColor', 'MemberName', 'MemberOwnerName', 'MemberOwnerRoomId', 'MemberOwnerUserId'];
-
-    // // this is how I watch danmu before ui exists, don't forget the hard time (?)
-    // // watch -n1 'cat logs/20220930M.log | grep -v cmd | grep -v kind | grep -v 投喂 | tail -40 | cut -c 50-140'
-    private async save(item: ChatItem) {
-
-        if (item.kind != 'danmu' && item.kind != 'superchat') {
-            log.notice(JSON.stringify(item));
-            return;
-        }
-
-        // time is kind of external input, validate it more strictly
-        if (!Number.isFinite(item.time)) {
-            log.error('cannot save item because time is not number ' + JSON.stringify(item));
-            return;
-        }
-        const postfix = dayjs.unix(item.time).utc().format('YYMM');
-
-        // dayjs seems to give 19700101 on rediculous input value and say it is valid, so reject 7001
-        if (postfix == '7001') {
-            log.error('cannot save item because time is invalid ' + JSON.stringify(item));
-            return;
-        }
-
-        const tableName = '`Message' + postfix + '`';
-        const columnNames = ChatClient.DatabaseColumnNames.map(c => '`' + c + '`').join(',');
-        const questions = ChatClient.DatabaseColumnNames.map(() => '?').join(',');
-
-        if (item.kind == 'danmu' || item.kind == 'superchat') {
-            // cannot use undefined for 'NOT NULL DEFAULT 0'
-            item.manager = item.manager || false;
-            item.memberActive = item.memberActive || false;
-            try {
-                await this.db.query(`INSERT INTO ${tableName} (${columnNames}) VALUES (${questions});`,
-                    // although I used timestamp everywhere,
-                    // mysql (not node mysql package) require insert statement to use formatted datetime not a number
-                    dayjs.unix(item.time).utc().format('YYYY-MM-DD HH:mm:ss'),
-                    // @ts-ignore this is a lot of columns again if written strong-typely
-                    ...ChatClient.DatabaseColumnNames.slice(1).map(c => item[c.charAt(0).toLowerCase() + c.substring(1)]));
-            } catch (error) {
-                log.error(`failed to save to database ${error} ${JSON.stringify(item)}`);
-            }
-        }
-    }
-
     // use current time for non timed items
     // but restrict them with next timed item to make items monotonic
     // don't need to restrict them with previous timed item because it is not likely that server send me a "future" item
@@ -150,14 +264,14 @@ class ChatClient {
         if (cooked.time) {
             log.debug(JSON.stringify(raw));
             log.debug(JSON.stringify(cooked));
-            this.save(cooked);
+            this.store.save(cooked);
             for (const item of this.inferredTimeItems) {
                 if (item.cooked.time > cooked.time) {
                     item.cooked.time = cooked.time;
                 }
                 log.debug(JSON.stringify(item.raw));
                 log.debug(JSON.stringify(item.cooked));
-                this.save(item.cooked);
+                this.store.save(item.cooked);
             }
             this.inferredTimeItems.splice(0, this.inferredTimeItems.length);
         } else {
@@ -187,7 +301,7 @@ class ChatClient {
 
             const item: ChatItem = {
                 time: raw.info[9].ts,
-                kind: 'danmu',
+                kind: 'message',
                 userId: raw.info[2][0],
                 userName: raw.info[2][1],
                 // I don't understand how they send a bare CR in danmu message
@@ -210,11 +324,11 @@ class ChatClient {
 
         } else if (raw.cmd == 'WATCHED_CHANGE') {
             if (!this.assertStructure(raw, raw.data)) { return; }
-            this.finishTransform(raw, { time: 0, kind: 'watched-amount', amount: raw.data.num });
+            this.finishTransform(raw, { time: 0, kind: 'watched-amount', text: `${raw.data.num},` });
 
         } else if (raw.cmd == 'ONLINE_RANK_COUNT') {
             if (!this.assertStructure(raw, raw.data)) { return; }
-            this.finishTransform(raw, { time: 0, kind: 'interacted-amount', amount: raw.data.count });
+            this.finishTransform(raw, { time: 0, kind: 'interacted-amount', text: `${raw.data.count},` });
 
         } else if (raw.cmd == 'ENTRY_EFFECT') {
             if (!this.assertStructure(raw,
@@ -229,8 +343,7 @@ class ChatClient {
             this.finishTransform(raw, {
                 time: Math.ceil(raw.data.trigger_time / 1000_000_000),
                 kind: 'entry',
-                userId: raw.data.uid,
-                userName: raw.data.copy_writing.substring(startIndex + 2, endIndex),
+                text: `${raw.data.uid},${raw.data.copy_writing.substring(startIndex + 2, endIndex)}`,
             });
 
         } else if (raw.cmd == 'SUPER_CHAT_MESSAGE') {
@@ -240,7 +353,7 @@ class ChatClient {
             )) { return; }
             const item: ChatItem = {
                 time: raw.data.start_time,
-                kind: 'superchat',
+                kind: 'message',
                 userId: raw.data.uid,
                 userName: raw.data.user_info.uname,
                 text: raw.data.message,
@@ -270,17 +383,8 @@ class ChatClient {
                 raw.data
                 && ['silver', 'gold'].includes(raw.data.coin_type)
             )) { return; }
-            const item: ChatItem = {
-                time: raw.data.start_time,
-                kind: 'gift',
-                userId: raw.data.uid,
-                userName: raw.data.uname,
-                giftAction: raw.data.action,
-                amount: raw.data.num,
-                giftName: raw.data.giftName,
-                price: raw.data.coin_type == 'silver' ? 0 : Math.ceil(raw.data.total_coin / 1000),
-                coins: raw.data.coin_type == 'silver' ? raw.data.total_coin : 0,
-            };
+            const price = raw.data.coin_type == 'silver' ? 0 : Math.ceil(raw.data.total_coin / 1000);
+            const coins = raw.data.coin_type == 'silver' ? raw.data.total_coin : 0;
             // send gift have same raw.data.medal_info like superchat, but they are discarded because
             // - I decide to put not interested items in a smaller table (at least no medal info)
             // - they are kind of too many (one 辣条 is one message)
@@ -288,36 +392,39 @@ class ChatClient {
             // if (raw.data.medal_info) {
             //     ...
             // }
-            this.finishTransform(raw, item);
-
-        } else if (raw.cmd == 'GUARD_BUY') {
-            if (!this.assertStructure(raw, raw.data)) { return; }
             this.finishTransform(raw, {
                 time: raw.data.start_time,
                 kind: 'gift',
-                userId: raw.data.uid,
-                userName: raw.data.username,
-                amount: raw.data.num,
-                giftName: raw.data.gift_name,
+                text: `${raw.data.uid}+${raw.data.uname},`
+                    + `${raw.data.action}+${raw.data.num}+${raw.data.giftName}+${price}+${coins}`,
+            });
+
+        } else if (raw.cmd == 'GUARD_BUY') {
+            if (!this.assertStructure(raw, raw.data)) { return; }
+            const price = Math.ceil(raw.data.price / 1000);
+            this.finishTransform(raw, {
+                time: raw.data.start_time,
+                kind: 'guard',
+                text: `${raw.data.uid}+${raw.data.username},${raw.data.num}+${raw.data.gift_name}+${price}`,
             });
 
         } else if (raw.cmd == 'ROOM_REAL_TIME_MESSAGE_UPDATE') {
             if (!this.assertStructure(raw, raw.data)) { return; }
-            this.finishTransform(raw, { time: 0, kind: 'fans-amount', amount: raw.data.fans });
-            this.finishTransform(raw, { time: 0, kind: 'fans-club-amount', amount: raw.data.fans_club });
+            this.finishTransform(raw, { time: 0, kind: 'fans-amount', text: `${raw.data.fans},` });
+            this.finishTransform(raw, { time: 0, kind: 'fans-club-amount', text: `${raw.data.fans_club},` });
 
         } else if (raw.cmd == 'ROOM_CHANGE') {
             if (!this.assertStructure(raw, raw.data)) { return; }
-            this.finishTransform(raw, { time: 0, kind: 'change-title', amount: raw.data.title });
+            this.finishTransform(raw, { time: 0, kind: 'change-title', text: `,${raw.data.title}` });
 
         } else if (raw.cmd == 'LIVE') {
             if (raw.live_time) {
-                this.finishTransform(raw, { time: raw.live_time, kind: 'start' });
+                this.finishTransform(raw, { time: raw.live_time, kind: 'start', text: ',' });
             } else {
                 // there seems to be 2 live notices, use the one with time and discard another
             }
         } else if (raw.cmd == 'PREPARING') {
-            this.finishTransform(raw, { time: 0, kind: 'stop' });
+            this.finishTransform(raw, { time: 0, kind: 'stop', text: ',' });
 
         } else if (
             raw.cmd == 'HOT_RANK_CHANGED' // boring rank
@@ -504,14 +611,11 @@ class ChatClient {
                 }
             });
         });
-
-        // don't know need this explicit keep process alive
-        setInterval(() => {}, 1 << 30);
     }
 }
 
-const config = JSON.parse(fs.readFileSync('config.json', 'utf-8'));
-const client = new ChatClient(new Database(config.database), config.roomId);
+const config = JSON.parse(fsnp.readFileSync('config.json', 'utf-8'));
+const client = new Client(new Storage(new Database(config.database)), config.roomId);
 
 let shuttingdown = false;
 function shutdown() {
@@ -524,10 +628,17 @@ function shutdown() {
         process.exit(1);
     }, 10_000);
 
-    client.stop().then(() => {
+    Promise.all([
+        client.stop(),
+        client.store.close(),
+    ]).then(() => {
         log.info('yabai service stop');
         console.log('yabai service stop');
         process.exit(0);
+    }, error => {
+        log.error(`yabai service stop with error ${error}`);
+        console.log('yabai service stop with error', error);
+        process.exit(1);
     });
 }
 process.on('SIGINT', shutdown);

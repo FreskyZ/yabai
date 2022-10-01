@@ -66,7 +66,7 @@ class Logger {
             this.time = dayjs.utc();
             fs.closeSync(this.handle);
             this.init(); // do not repeat init file handle
-            this.notFlushTimeout = null;
+            this.notFlushCount = null;
         }
     }
 
@@ -87,11 +87,7 @@ class Logger {
         if (!this.handle) {
             this.init();
         }
-        if (this.options.postfix == 'N') {
-            fs.writeSync(this.handle, content + '\n');
-        } else {
-            fs.writeSync(this.handle, `[${dayjs.utc().format('HH:mm:ss')}] ${content}\n`);
-        }
+        fs.writeSync(this.handle, `[${dayjs.utc().format('HH:mm:ss')}] ${content}\n`);
         if (this.notFlushCount + 1 > this.options.flushByCount) {
             this.flush();
         } else {
@@ -103,7 +99,7 @@ class Logger {
     }
 }
 
-type Level = 'info' | 'error' | 'debug' | 'notice';
+type Level = 'info' | 'error' | 'debug';
 const levels: Record<Level, LoggerOptions> = {
     // normal log
     info: { postfix: 'I', flushByCount: 11, flushByInterval: 600, reserveDays: 7 },
@@ -111,9 +107,6 @@ const levels: Record<Level, LoggerOptions> = {
     error: { postfix: 'E', flushByCount: 0, flushByInterval: 0, reserveDays: 7 },
     // debug log, raw message and transformed message, is written frequently, so flush by count is kind of large
     debug: { postfix: 'D', flushByCount: 101, flushByInterval: 600, reserveDays: 7 },
-    // notice log, chat item kind except danmu and superchat,
-    // this is actually intended as persist log, I may be move them out occassionally
-    notice: { postfix: 'N', flushByCount: 101, flushByInterval: 600, reserveDays: 180 },
 };
 
 // @ts-ignore ts does not understand object.entries, actually it does not understand reduce<>(..., {}), too

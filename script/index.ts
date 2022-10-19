@@ -1,6 +1,7 @@
 import * as readline from 'readline';
 import { admin } from './tools/admin';
 import { build as buildSelf, hashself } from './targets/self';
+import { build as buildPlayer } from './targets/player';
 import { build as buildServer, uploadConfig } from './targets/server';
 
 process.on('unhandledRejection', error => {
@@ -16,6 +17,8 @@ function dispatch(args: string) {
     /**/ if (args == 'self') { buildSelf(); }
 
     else if (args == 'server') { buildServer(); }
+    else if (args == 'player') { buildPlayer(false); }
+    else if (args == 'watch player') { buildPlayer(true); }
     // else if (args == 'core') { buildServer(false); }
     // else if (args == 'both') { buildClient(false, 'c'); buildServer(false, 's'); }
     // else if (args == 'watch ui') { buildClient(true); }

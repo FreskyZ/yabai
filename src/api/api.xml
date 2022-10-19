@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<xxapi-api version="1">
+    <api name="getArchives" method="GET" path="/archives/{year:number}/{month:number}" return-type="Archive[]" />
+    <api name="getLiveInfo" method="GET" path="/liveinfo/{id:number}" return-type="LiveInfo" />
+    <api name="getPlayInfo" method="GET" path="/playinfo/{realid:number}" return-type="PlayInfo[]" />
+    <!-- <api name="getArchive" method="GET" path="/archive/{identifier:string}" return-type="file" /> -->
+</xxapi-api>

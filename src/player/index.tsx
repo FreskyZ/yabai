@@ -3,8 +3,10 @@ import React from 'react';
 // @ts-ignore
 import { useState } from 'react';
 import * as dayjs from 'dayjs';
+import { $default } from '../api/client';
 
 async function getLiveStatus(realId: number): Promise<number> {
+
     const response = await fetch(
         `https://api.live.bilibili.com/xlive/web-room/v1/index/getInfoByRoom?room_id=${realId}`);
     if (response.status != 200) {
@@ -78,6 +80,7 @@ async function displayPlayURL(realId: number): Promise<void> {
 
 (window as any)['getLiveStatus'] = getLiveStatus;
 (window as any)['displayPlayURL'] = displayPlayURL;
+(window as any)['getArchives'] = () => $default.getArchives(2022, 10);
 
 // const roomId = parseInt(process.argv[2]);
 // if (isNaN(roomId)) {

@@ -3,6 +3,7 @@ import * as chalk from 'chalk';
 import { logInfo, logCritical, watchvar } from '../common';
 import { admin } from '../tools/admin';
 import { eslint } from '../tools/eslint';
+import { codegen } from '../tools/codegen';
 import { Asset, upload } from '../tools/ssh';
 import { SassOptions, SassResult, sass } from '../tools/sass';
 import { TypeScriptOptions, TypeScriptResult, MyJSXRuntime, typescript } from '../tools/typescript';
@@ -33,28 +34,41 @@ const getUploadAsset = (result: TypeScriptResult | SassResult | 'html'): Asset =
     data: result.resultCss,
 };
 
-function setupjsx(result: TypeScriptResult) {
+function setupJSXAndOtherMAGIC(result: TypeScriptResult) {
     const content = result.files[0].content;
 
+    // replace import react with deconstruction react for hooks
     const match = /import (?<pat>{[\w\s,]+}) from 'react';/.exec(content); // pat: deconstruction pattern // rust call this syntax node pattern, js world seems using other name but I don't know
-    const importreact = match ? `const ${match.groups['pat']} = React;` : ''; // this match is expected to be sucess
+    const importReact = match ? `const ${match.groups['pat']} = React;` : ''; // this match is expected to be sucess
 
-    let mycode = content.slice(content.indexOf('\n') + 1); //content.slice(content.indexOf('\n', content.indexOf('\n', content.indexOf('\n') + 1) + 1) + 1); // my content starts from line 3
-    mycode = mycode.replaceAll(/_jsxs?\(_Fragment, /g, 'myjsxf(').replaceAll(/_jsxs?/g, 'myjsx'); // replace _jsxs? to myjsx, because a lot of underscore reduce readability
-
-    result.files[0].content = importreact + MyJSXRuntime + '\n' + mycode; // put import react and jsx runtime in one line and then mycode
+    // concat all files, they are index.js + api/client.js + adk/api-client.js for now
+    let concated = result.files.map(f => f.content).join('');
+    // remove all lines starts with 'import '
+    let removedImport = concated.split('\n').filter(line => !line.startsWith('import '));
+    // remove all beginning 'export '
+    let removedExport = removedImport.map(line => line.startsWith('export ') ? line.substring(7) : line).join('\n');
+    // replace jsx runtime usage
+    let replaceJSXRuntimeUsage = removedExport.replaceAll(/_jsxs?\(_Fragment, /g, 'myjsxf(').replaceAll(/_jsxs?/g, 'myjsx');
+    // and final bundle result
+    return [importReact, MyJSXRuntime, replaceJSXRuntimeUsage].join('\n');
 }
 
 async function buildOnce(): Promise<void> {
     logInfo('akr', chalk`{cyan player}`);
+    await eslint(`player`, 'browser', 'src/player/index.tsx');
+
+    const generateResult = await codegen('client').generate();
+    if (!generateResult.success) {
+        return logCritical('akr', chalk`{cyan player} failed at codegen`);
+    }
+
     const assets: Asset[] = [getUploadAsset('html')]; // html is here
 
-    await eslint(`player`, 'browser', 'src/player/index.tsx');
     const checkResult = typescript(getTypeScriptOptions(false)).check();
     if (!checkResult.success) {
         return logCritical('akr', chalk`{cyan player} failed at check`);
     }
-    setupjsx(checkResult);
+    checkResult.files[0].content = setupJSXAndOtherMAGIC(checkResult);
     assets.push(getUploadAsset(checkResult));
 
     const transpileResult = await sass(sassOptions).transpile();
@@ -82,8 +96,10 @@ function buildWatch() {
         admin.core({ type: 'content', sub: { type: 'reload-static', key: 'xxapi' } });
     }, { interval: 2021 });
 
+    codegen('client').watch();
+
     typescript(getTypeScriptOptions(true)).watch(async checkResult => {
-        setupjsx(checkResult);
+        setupJSXAndOtherMAGIC(checkResult);
         // tsc does not print watched message because in backend targets it will be directly followed by a mypack 'repack' message, so add one here
         logInfo('tsc', `completed with no diagnostics`);
         if (await upload(getUploadAsset(checkResult))) { requestReload(); }

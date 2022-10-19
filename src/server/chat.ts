@@ -46,6 +46,7 @@ type ChatItem = {
     userId: number,
     userName: string, // may be incomplete or not available for kind=entry
     text: string, // text for danmu or superchat, or other kinds' remaining part comma separated
+    color?: number, // text color for danmu
     price?: number, // super chat price or charged gift price in Chinese Yuan
     emoticon?: string, // application custom emoticon, include common or liver specific
     manager?: boolean, // is room manager
@@ -156,6 +157,7 @@ export class ChatStorage {
                    \`UserId\` BIGINT NOT NULL,
                    \`UserName\` VARCHAR(100) NOT NULL, -- don't know the actual limit
                    \`Text\` VARCHAR(500) NOT NULL, -- don't know the actual limit, at least it is dynamic
+                   \`Color\` INT NULL,
                    \`Emoticon\` VARCHAR(50) NULL,
                    \`Price\` INT NULL, -- the max amount I have ever seen is 100_000rmb, so int should be ok
                    \`Manager\` BIT(1) NOT NULL DEFAULT 0,
@@ -175,7 +177,7 @@ export class ChatStorage {
     }
 
     // the number of question mark will be really many if not generated from this array automatically
-    private static DatabaseColumnNames = ['Time', 'UserId', 'UserName', 'Manager', 'Text', 'Emoticon', 'Price',
+    private static DatabaseColumnNames = ['Time', 'UserId', 'UserName', 'Manager', 'Text', 'Color', 'Emoticon', 'Price',
         'MemberActive', 'MemberLevel', 'MemberLevelColor', 'MemberName', 'MemberOwnerName', 'MemberOwnerRoomId', 'MemberOwnerUserId'];
 
     private async saveMessage(item: ChatItem) {
@@ -313,6 +315,7 @@ export class ChatClient {
                 userName: raw.info[2][1],
                 // I don't understand how they send a bare CR in danmu message
                 text: raw.info[1].trim().replaceAll('\r', '').replaceAll('\n', ''),
+                color: raw.info[0][3],
                 emoticon: raw.info[0][13].emoticon_unique,
             }
             if (raw.info[2][2] != 0) {

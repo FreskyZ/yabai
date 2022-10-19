@@ -16,14 +16,11 @@ function calladmin(result: Promise<boolean>) {
 function dispatch(args: string) {
     /**/ if (args == 'self') { buildSelf(); }
 
-    else if (args == 'server') { buildServer(false); }
     else if (args == 'player') { buildPlayer(false); }
-    else if (args == 'watch server') { buildServer(true); }
+    else if (args == 'server') { buildServer(false); }
     else if (args == 'watch player') { buildPlayer(true); }
-    // else if (args == 'core') { buildServer(false); }
+    else if (args == 'watch server') { buildServer(true); }
     // else if (args == 'both') { buildClient(false, 'c'); buildServer(false, 's'); }
-    // else if (args == 'watch ui') { buildClient(true); }
-    // else if (args == 'watch core') { buildServer(true); }
     // else if (args == 'watch both') { buildClient(true, 'c'); buildServer(true, 's'); }
 
     // content

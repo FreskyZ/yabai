@@ -6,7 +6,7 @@
     <meta name="ROBOTS" content="INDEX">
     <link rel="icon" type='image/x-icon' href="/favicon.ico">
     <link rel="stylesheet" type="text/css" href="https://unpkg.com/antd@4.9.3/dist/antd.min.css">
-    <link rel="stylesheet" type="text/css" href="/player.css">
+    <stylesheet-placeholder />
   </head>
   <body>
 
@@ -15,10 +15,7 @@
       <div id="comments-container">COMMENTS CONTAINER</div>
     </main>
 
-    <video></video>
-    <script src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
-    <script src="https://unpkg.com/dayjs@1.11.5/dayjs.min.js"></script>
-    <script src="/player.js"></script>
+    <script-placeholder />
     <script>
       // const video = document.querySelector('video');
       // const videoSrc = 'https://d1--cn-gotcha208.bilivideo.com/live-bvc/758045/live_13046_1719057_4000/index.m3u8?expires=1664388340&len=0&oi=1700196844&pt=h5&qn=400&trid=10073aa476f03a8a4152998b32711bc8d71a&sigparams=cdn,expires,len,oi,pt,qn,trid&cdn=cn-gotcha208&sign=9e1c0bc8ad1534f484ad2e955ab4bcf6&sk=b85abc470d231416c13210be3496969f&p2p_type=0&src=57345&sl=8&free_type=0&pp=rtmp&machinezone=jd&source=onetier&site=3c51fb23851b5a0df54be0c378a929db&order=1';
@@ -26,22 +23,6 @@
       //     const hls = new Hls();
       //     hls.loadSource(videoSrc);
       //     hls.attachMedia(video);
-      // }
-      // // HLS.js is not supported on platforms that do not have Media Source
-      // // Extensions (MSE) enabled.
-      // //
-      // // When the browser has built-in HLS support (check using `canPlayType`),
-      // // we can provide an HLS manifest (i.e. .m3u8 URL) directly to the video
-      // // element through the `src` property. This is using the built-in support
-      // // of the plain video element, without using HLS.js.
-      // //
-      // // Note: it would be more normal to wait on the 'canplay' event below however
-      // // on Safari (where you are most likely to find built-in HLS support) the
-      // // video.src URL must be on the user-driven white-list before a 'canplay'
-      // // event will be emitted; the last video event that can be reliably
-      // // listened-for when the URL is not on the white-list is 'loadedmetadata'.
-      // else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      //     video.src = videoSrc;
       // }
     </script>
   </body>

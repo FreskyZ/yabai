@@ -92,9 +92,17 @@ class Storage {
         ]);
     }
 
+    // Storage.save does not prevent reentry, prevent here
+    private openingTask: Promise<void> = null;
     private async openNotice() {
-        await fs.mkdir('notice', { recursive: true });
-        this.file = await fs.open(path.resolve('notice', `${this.filetime.format('YYYYMMDD')}.csv`), 'a');
+        if (!this.openingTask) {
+            this.openingTask = (async () => {
+                await fs.mkdir('notice', { recursive: true });
+                this.file = await fs.open(path.resolve('notice', `${this.filetime.format('YYYYMMDD')}.csv`), 'a');
+                this.openingTask = null;
+            })();
+        }
+        await this.openingTask;
     }
 
     private async flushNotice() {
@@ -450,10 +458,7 @@ class Client {
             || raw.cmd == 'LIVE_INTERACTIVE_GAME' // appear together with normal danmu, info already included in that
             || raw.cmd == 'GUARD_HONOR_THOUSAND' // other liver's thousand guard notice
             || raw.cmd == 'LIVE_MULTI_VIEW_CHANGE' // unknown data
-            || (raw.cmd == 'NOTICE_MSG' && raw.msg_type == 2) // boring other live room
-            || (raw.cmd == 'NOTICE_MSG' && raw.msg_type == 3) // appear together with guard_buy, duplicate info, also boring other live room
-            || (raw.cmd == 'NOTICE_MSG' && raw.msg_type == 4) // boring other live room
-            || (raw.cmd == 'NOTICE_MSG' && raw.msg_type == 6) // boring other live room
+            || raw.cmd == 'NOTICE_MSG' // boring other live room, notice msg has completely proved its own meaningless
         ) {
             // discard because of too many, or meaningless, or both
             return;
@@ -614,7 +619,7 @@ class Client {
     }
 }
 
-const config = JSON.parse(fsnp.readFileSync('config.json', 'utf-8'));
+const config = JSON.parse(fsnp.readFileSync('config', 'utf-8'));
 const client = new Client(new Storage(new Database(config.database)), config.roomId);
 
 let shuttingdown = false;

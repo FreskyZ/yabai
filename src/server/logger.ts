@@ -120,7 +120,7 @@ export const log: Record<Level, (content: string) => void> = Object.fromEntries(
 // try cleanup outdated logs per hour
 setInterval(() => Object.entries(loggers).map(([_, logger]) => logger.cleanup()), 3600_000).unref();
 
-// this flush log is more proper
+// flush logger on exit is more proper (compare to recent versions of wacq)
 process.on('exit', () => {
     Object.entries(loggers).map(([_, logger]) => logger.deinit());
 });
@@ -128,7 +128,7 @@ process.on('exit', () => {
 process.on('uncaughtException', async error => {
     console.log('uncaught exception', error);
     try {
-        await log.error(`uncaught exception: ${error.message}`);
+        log.error(`uncaught exception: ${error.message}`);
     } catch {
         // nothing, this happens when logger initialize have error
     }
@@ -137,7 +137,7 @@ process.on('uncaughtException', async error => {
 process.on('unhandledRejection', async reason => {
     console.log('unhandled rejection', reason);
     try {
-        await log.error(`unhandled rejection: ${reason}`);
+        log.error(`unhandled rejection: ${reason}`);
     } catch {
         // nothing, this happens when logger initialize have error
     }

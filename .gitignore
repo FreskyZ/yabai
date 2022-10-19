@@ -1,2 +1,14 @@
-kabai/data
+
 node_modules
+akaric
+
+# temp exclude kabai data, after it updated, move to ~
+src/kabai/data
+
+# soft links, they contain absolute path
+script/targets/self.ts
+script/tools
+script/common.ts
+src/adk
+src/shared/admin.d.ts
+src/shared/auth.d.ts

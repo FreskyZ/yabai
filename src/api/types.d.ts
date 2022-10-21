@@ -18,9 +18,9 @@ export interface LiveInfo {
 }
 
 export interface PlayInfo {
-    protocol: string,
-    format: string,
-    codec: string,
+    protocol: 'http_stream' | 'http_hls',
+    format: 'flv' | 'ts' | 'fmp4',
+    codec: 'avc' | 'hevc',
     ttl: number,
     url: string,
 }

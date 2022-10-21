@@ -1,29 +1,19 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>XXAPI</title>
+    <title>&sharp;单推播放器</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="ROBOTS" content="INDEX">
     <link rel="icon" type='image/x-icon' href="/favicon.ico">
-    <link rel="stylesheet" type="text/css" href="https://unpkg.com/antd@4.9.3/dist/antd.min.css">
-    <stylesheet-placeholder />
+    <link rel="stylesheet" type="text/css" href="/player.css">
   </head>
   <body>
 
-    <main>
-      <div id="player-container">PLAYER CONTAINER</div>
-      <div id="comments-container">COMMENTS CONTAINER</div>
-    </main>
+    <video autoplay="true" controls="true" muted="muted"></video>
+    <div id="control-panel">CONTROL PANEL</div>
 
-    <script-placeholder />
-    <script>
-      // const video = document.querySelector('video');
-      // const videoSrc = 'https://d1--cn-gotcha208.bilivideo.com/live-bvc/758045/live_13046_1719057_4000/index.m3u8?expires=1664388340&len=0&oi=1700196844&pt=h5&qn=400&trid=10073aa476f03a8a4152998b32711bc8d71a&sigparams=cdn,expires,len,oi,pt,qn,trid&cdn=cn-gotcha208&sign=9e1c0bc8ad1534f484ad2e955ab4bcf6&sk=b85abc470d231416c13210be3496969f&p2p_type=0&src=57345&sl=8&free_type=0&pp=rtmp&machinezone=jd&source=onetier&site=3c51fb23851b5a0df54be0c378a929db&order=1';
-      // if (Hls.isSupported()) {
-      //     const hls = new Hls();
-      //     hls.loadSource(videoSrc);
-      //     hls.attachMedia(video);
-      // }
-    </script>
+    <script type="text/javascript" src="https://unpkg.com/dayjs@1.11.5/dayjs.min.js"></script>
+    <script type="text/javascript" src="https://unpkg.com/hls.js@1.2.4/dist/hls.min.js"></script>
+    <script type="text/javascript" src="/player.js"></script>
   </body>
 </html>

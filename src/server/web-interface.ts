@@ -40,6 +40,7 @@ async function getLiveInfo(roomId: number): Promise<api.LiveInfo> {
         areaName: body.data.room_info.area_name,
     };
 }
+
 async function getPlayInfo(realId: number): Promise<api.PlayInfo[]> {
     const response = await fetch(
         'https://api.live.bilibili.com/xlive/web-room/v2/index/getRoomPlayInfo'

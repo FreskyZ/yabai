@@ -4,10 +4,11 @@
 //-----------------------------------------------------------------------------------------------
 
 import { get } from '../adk/api-client';
-import type { Archive, LiveInfo, PlayInfo } from './types';
+import type { Archive, LiveInfo, PlayInfo, ChatConfiguration } from './types';
 
 export const $default = {
     getArchives: (year: number, month: number): Promise<Archive[]> => get(`/xxapi/v1/default/archives/${year}/${month}`),
     getLiveInfo: (id: number): Promise<LiveInfo> => get(`/xxapi/v1/default/liveinfo/${id}`),
     getPlayInfo: (realid: number): Promise<PlayInfo[]> => get(`/xxapi/v1/default/playinfo/${realid}`),
+    getChatConf: (realId: number): Promise<ChatConfiguration> => get(`/xxapi/v1/default/chatconf/${realId}`),
 };

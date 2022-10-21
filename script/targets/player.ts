@@ -27,7 +27,7 @@ const sassOptions: SassOptions = {
 };
 const getTypeScriptOptions = (watch: boolean): TypeScriptOptions => ({
     base: 'normal',
-    entry: `src/player/index.tsx`,
+    entry: `src/player/index.ts`,
     additionalLib: ['dom'],
     sourceMap: 'no',
     watch,
@@ -42,6 +42,7 @@ const getMyPackOptions = (files: MyPackOptions['files']): MyPackOptions => ({
         // this is amazing place for this amazing workaround that
         // hls ecma module need import default but the cdn package can directly use the Hls variable
         'hls.js': '{ default: Hls }',
+        'pako': 'pako',
     },
 });
 
@@ -107,7 +108,7 @@ function buildWatch() {
     logInfo('akr', chalk`watch {cyan player}`);
 
     const requestReload = watchvar(() => {
-        admin.core({ type: 'content', sub: { type: 'reload-static', key: 'xxapi' } });
+        admin.core({ type: 'content', sub: { type: 'reload-static', key: 'xxapi' } })
     }, { interval: 2021 });
 
     codegen('client').watch();
@@ -117,17 +118,23 @@ function buildWatch() {
         logInfo('tsc', `completed with no diagnostics`);
         const packResult = await mypack(getMyPackOptions(checkResult.files)).run();
         if (packResult.success) {
-            if (await upload(getJSUploadAsset(packResult))) { requestReload(); }
+            if (await upload(getJSUploadAsset(packResult))) {
+                requestReload();
+            }
         }
     });
 
     sass(sassOptions).watch(async transpileResult => {
-        if (await upload(getCssUploadAsset(transpileResult))) { requestReload(); }
+        if (await upload(getCssUploadAsset(transpileResult))) {
+            requestReload();
+        }
     });
 
     const requestReupload = watchvar(async () => {
         logInfo('htm', 'reupload');
-        if (await upload(getHTMLUploadAsset(await fs.promises.readFile(htmlEntry)))) { requestReload(); }
+        if (await upload(getHTMLUploadAsset(await fs.promises.readFile(htmlEntry)))) {
+            requestReload();
+        }
     }, { interval: 2021, initialCall: true });
     logInfo('htm', chalk`watch {yellow ${htmlEntry}}`);
     fs.watch(htmlEntry, { persistent: false }, requestReupload);

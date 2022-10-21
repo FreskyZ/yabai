@@ -9,11 +9,26 @@
   </head>
   <body>
 
-    <video autoplay="true" controls="true" muted="muted"></video>
-    <div id="control-panel">CONTROL PANEL</div>
+    <video muted="true" autoplay="true"></video>
+    <div id="video-mask"></div>
+    <div id="control-panel" draggable="true">
+      <div id="control-header">
+        <div id="live-status">
+          <span id="live-mark"></span>
+          <span>LIVE</span>
+        </div>
+        <div id="chat-status">
+          <span id="chat-mark"></span>
+          <span>CHAT</span>
+        </div>
+        <div id="live-title">TITLE</div>
+      </div>
+      <div id="chat-container">弹幕弹幕</div>
+    </div>
 
     <script type="text/javascript" src="https://unpkg.com/dayjs@1.11.5/dayjs.min.js"></script>
     <script type="text/javascript" src="https://unpkg.com/hls.js@1.2.4/dist/hls.min.js"></script>
+    <script type="text/javascript" src="https://unpkg.com/pako@2.0.4/dist/pako_inflate.min.js"></script>
     <script type="text/javascript" src="/player.js"></script>
   </body>
 </html>

@@ -3,5 +3,6 @@
     <api name="getArchives" method="GET" path="/archives/{year:number}/{month:number}" return-type="Archive[]" />
     <api name="getLiveInfo" method="GET" path="/liveinfo/{id:number}" return-type="LiveInfo" />
     <api name="getPlayInfo" method="GET" path="/playinfo/{realid:number}" return-type="PlayInfo[]" />
+    <api name="getChatConf" method="GET" path="/chatconf/{realId:number}" return-type="ChatConfiguration" />
     <!-- <api name="getArchive" method="GET" path="/archive/{identifier:string}" return-type="file" /> -->
 </xxapi-api>

@@ -7,20 +7,26 @@ export interface Archive {
 }
 
 export interface LiveInfo {
-    realid: number,
+    realId: number,
     userName: string,
     title: string,
     live: 'no' | 'live' | 'loop',
     startTime: number,
-    coverImage: string,
+    coverImage: string, // url
     parentAreanName: string,
     areaName: string,
+    avatarImage: string, // url
 }
 
 export interface PlayInfo {
+    url: string,
+    ttl: number,
     protocol: 'http_stream' | 'http_hls',
     format: 'flv' | 'ts' | 'fmp4',
     codec: 'avc' | 'hevc',
-    ttl: number,
+}
+
+export interface ChatConfiguration {
     url: string,
+    token: string,
 }

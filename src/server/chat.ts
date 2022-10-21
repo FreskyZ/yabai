@@ -46,7 +46,7 @@ type ChatItem = {
     userId: number,
     userName: string, // may be incomplete or not available for kind=entry
     text: string, // text for danmu or superchat, or other kinds' remaining part comma separated
-    color?: number, // text color for danmu
+    color?: number, // text color for danmu, also integer representation for hex rgb
     price?: number, // super chat price or charged gift price in Chinese Yuan
     emoticon?: string, // application custom emoticon, include common or liver specific
     manager?: boolean, // is room manager
@@ -526,6 +526,10 @@ export class ChatClient {
     public async start() {
         await this.stop();
         const { token, url } = await this.getServer();
+        // nothing happens, error already logged
+        if (!url) {
+            return;
+        }
 
         log.info(`websocket connecting to ${url}`);
         this.connection = new WebSocket(url);

@@ -26,11 +26,11 @@ async function getLiveInfo(roomId: number): Promise<api.LiveInfo> {
         throw new FineError('internal', `live info: cannot parse body ${error} ${response}`);
     }
     if (body.code != 0 || !body.data || !body.data.room_info) {
-        throw new FineError('internal', `live info: unrecognized body ${body}`);
+        throw new FineError('internal', `live info: unrecognized body ${JSON.stringify(body)}`);
     }
 
     return {
-        realid: body.data.room_info.room_id,
+        realId: body.data.room_info.room_id,
         userName: body.data.anchor_info.base_info.uname,
         title: body.data.room_info.title,
         live: body.data.room_info.live_status == 1 ? 'live' : body.data.room_info.live_status == 2 ? 'loop' : 'no',
@@ -38,6 +38,7 @@ async function getLiveInfo(roomId: number): Promise<api.LiveInfo> {
         coverImage: body.data.room_info.cover,
         parentAreanName: body.data.room_info.parent_arena_name,
         areaName: body.data.room_info.area_name,
+        avatarImage: body.data.anchor_info.base_info.face,
     };
 }
 
@@ -65,7 +66,7 @@ async function getPlayInfo(realId: number): Promise<api.PlayInfo[]> {
     }
     if (body.code != 0 || !body.data || !body.data.playurl_info
         || !body.data.playurl_info.playurl || !body.data.playurl_info.playurl.stream) {
-        throw new FineError('internal', `play info: unrecognized body ${body}`);
+        throw new FineError('internal', `play info: unrecognized body ${JSON.stringify(body)}`);
     }
 
     // result is a cross product of input options
@@ -88,6 +89,26 @@ async function getPlayInfo(realId: number): Promise<api.PlayInfo[]> {
     return results;
 }
 
+// this is same as the one in ./chat, with different error handling
+async function getChatConf(realId: number): Promise<api.ChatConfiguration> {
+    const response = await fetch(`https://api.live.bilibili.com/room/v1/Danmu/getConf?room_id=${realId}`);
+    if (response.status != 200) {
+        throw new FineError('internal', `chat conf: response ${response.status} ${response.statusText}`);
+    }
+    let body: any;
+    try {
+        body = await response.json();
+    } catch (error) {
+        throw new FineError('internal', `chat conf: cannot parse body ${error} ${response}`);
+    }
+    if (body.code != 0 || !body.data || !body.data.host_server_list || !body.data.token) {
+        throw new FineError('internal', `chat conf: unrecognized body, ${JSON.stringify(body)}`)
+    }
+
+    // see ChatClient.getChatServer for reason for only use one
+    return { token: body.data.token, url: `wss://${body.data.host_server_list[0].host}:${body.data.host_server_list[0].wss_port}/sub` };
+}
+
 async function getArchives(_year: number, _month: number): Promise<api.Archive[]> {
     if ('SOMETHINGNOTEXIST' in process.env) {
         db.query("something");
@@ -104,7 +125,7 @@ function handleError(kind: string, error: any) {
 export function setupWebInterface(socketpath: string, rdb: Database) {
     db = rdb;
     setupAPIServer(socketpath, handleError, x => dispatchImpl(x, {
-        default: { getLiveInfo, getPlayInfo, getArchives },
+        default: { getLiveInfo, getPlayInfo, getChatConf, getArchives },
     }));
 }
 export function shutdownWebInterface() {

@@ -1,9 +1,57 @@
 
+body
+    overflow: hidden
+
 video
-    width: calc(100vw - 40px)
-    height: calc(100vh - 40px)
+    width: 100vw
+    height: 100vh
+    background: #303030
+
+div#video-mask
+    position: fixed
+    left: 0
+    top: 0
+    width: 100vw
+    height: 100vh
+    background-color: rgba(0, 0, 0, 0.01)
 
 div#control-panel
-    width: 200px
-    height: 400px
+    position: fixed
     border: 1px solid lightgray
+    background-color: #AFAFAF80
+
+    div#control-header
+        height: 24px
+        display: grid
+        grid-template-columns: 32px auto
+        grid-template-rows: 12px 12px
+        cursor: grab
+        border-bottom: 1px solid lightgray
+
+    div#live-status
+        display: flex
+        grid-area: 1/1/1/1
+        font-size: 8px
+    div#chat-status
+        display: flex
+        grid-area: 2/1/2/1
+        font-size: 8px
+    div#live-title
+        grid-area: 1/2/3/2
+        line-height: 24px
+        padding-left: 4px
+        max-width: 248px
+        overflow: hidden
+        text-overflow: ellipsis
+        white-space: no-wrap
+
+    span#live-mark, span#chat-mark
+        margin: 2px
+        display: inline-block
+        width: 8px
+        height: 8px
+        border-radius: 4px
+        background: orange
+
+    span#live-mark.active, span#chat-mark.active
+        background: green

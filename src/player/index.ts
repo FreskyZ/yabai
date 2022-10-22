@@ -17,15 +17,17 @@ const ui = {
     danmus: [] as HTMLDivElement[],
 };
 
-let danmucount = 16;
-new Array(danmucount).fill(0).map(() => {
+let danmucount = 15;
+new Array(danmucount).fill(0).map((_, i) => {
     const danmu = document.createElement('div');
     danmu.classList.add('chat-item');
     const price = document.createElement('span');
     price.classList.add('price');
+    price.style.display = 'none';
     danmu.appendChild(price);
     const member = document.createElement('span');
     member.classList.add('member');
+    member.style.display = 'none';
     danmu.appendChild(member);
     const username = document.createElement('span');
     username.classList.add('username');
@@ -33,7 +35,9 @@ new Array(danmucount).fill(0).map(() => {
     const content = document.createElement('span');
     content.classList.add('content');
     danmu.appendChild(content);
-    content.innerText = '按屏幕的任意区域（除了弹幕区域）取消静音';
+    if (i == danmucount - 1) {
+        content.innerText = '按视频的任意区域取消静音';
+    }
     ui.danmus.push(danmu);
     ui.chatcontainer.appendChild(danmu);
 });

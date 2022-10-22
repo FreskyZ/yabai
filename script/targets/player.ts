@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as chalk from 'chalk';
+import { config } from '../config';
 import { logInfo, logCritical, watchvar } from '../common';
 import { admin } from '../tools/admin';
 import { eslint } from '../tools/eslint';
@@ -46,9 +47,9 @@ const getMyPackOptions = (files: MyPackOptions['files']): MyPackOptions => ({
     },
 });
 
-const getHTMLUploadAsset = (data: Buffer): Asset => ({
+const getHTMLUploadAsset = (content: string): Asset => ({
     remote: 'static/xxapi/player.html',
-    data,
+    data: Buffer.from(content),
 });
 const getCssUploadAsset = (result: SassResult): Asset => ({
     remote: 'static/xxapi/player.css',
@@ -65,7 +66,8 @@ async function buildOnce(): Promise<void> {
 
     // task1: read html file
     const p1 = (async () => {
-        return getHTMLUploadAsset(await fs.promises.readFile(htmlEntry));
+        const content = await fs.promises.readFile(htmlEntry, 'utf-8');
+        return getHTMLUploadAsset(content.replace('<dev-script-placeholder />', ''));
     })();
     // task2: transpile sass
     const p2 = (async () => {
@@ -107,8 +109,12 @@ async function buildOnce(): Promise<void> {
 function buildWatch() {
     logInfo('akr', chalk`watch {cyan player}`);
 
+    let jsHasChange = false;
     const requestReload = watchvar(() => {
+        const thisTimeJSHasChange = jsHasChange;
+        jsHasChange = false;
         admin.core({ type: 'content', sub: { type: 'reload-static', key: 'xxapi' } })
+            .then(() => admin.devpage(thisTimeJSHasChange ? 'reload-all' : 'reload-css'));
     }, { interval: 2021 });
 
     codegen('client').watch();
@@ -119,6 +125,7 @@ function buildWatch() {
         const packResult = await mypack(getMyPackOptions(checkResult.files)).run();
         if (packResult.success) {
             if (await upload(getJSUploadAsset(packResult))) {
+                jsHasChange = true;
                 requestReload();
             }
         }
@@ -132,7 +139,10 @@ function buildWatch() {
 
     const requestReupload = watchvar(async () => {
         logInfo('htm', 'reupload');
-        if (await upload(getHTMLUploadAsset(await fs.promises.readFile(htmlEntry)))) {
+        const content = await fs.promises.readFile(htmlEntry, 'utf-8');
+        const scripttag = `<script type="text/javascript" src="https://${config.domain}:${await admin.port}/client-dev.js"></script>`;
+        if (await upload(getHTMLUploadAsset(content.replace('<dev-script-placeholder />', scripttag)))) {
+            jsHasChange = true;
             requestReload();
         }
     }, { interval: 2021, initialCall: true });

@@ -38,17 +38,14 @@ async function buildOnce(): Promise<void> {
     if (!codegenResult.success) {
         return logCritical('akr', chalk`{cyan server} failed at code generation`);
     }
-
     const checkResult = typescript(getTypeScriptOptions(false)).check();
     if (!checkResult.success) {
         logCritical('akr', chalk`{cyan server} failed at check`);
     }
-
     const packResult = await mypack(getMyPackOptions(checkResult.files)).run();
     if (!packResult.success) {
         logCritical('akr', chalk`{cyan server} failed at pack`);
     }
-
     const uploadResult = await upload(getUploadAssets(packResult), { basedir: config.approot });
     if (!uploadResult) {
         logCritical('akr', chalk`{cyan server} failed at upload`);

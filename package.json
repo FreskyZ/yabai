@@ -5,7 +5,6 @@
   "dependencies": {
     "dayjs": "^1.11.5",
     "mysql": "^2.18.1",
-    "node-fetch": "^2.6.7",
     "ws": "^8.9.0"
   },
   "devDependencies": {
@@ -13,7 +12,6 @@
     "@types/crypto-js": "^4.1.1",
     "@types/eslint": "^8.4.6",
     "@types/mysql": "^2.15.21",
-    "@types/node-fetch": "^2.6.2",
     "@types/pako": "^2.0.0",
     "@types/react": "^18.0.21",
     "@types/react-dom": "^18.0.6",

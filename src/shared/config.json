@@ -1,0 +1,15 @@
+{
+    "roomId": 92613,
+    "socketpath": "",
+    "database": {
+        "host": "",
+        "port": 0,
+        "user": "",
+        "password": "",
+        "database": "",
+        "timezone": "utc",
+        "supportBigNumbers": true,
+        "dateStrings": true,
+        "charset": "utf8mb4"
+    }
+}

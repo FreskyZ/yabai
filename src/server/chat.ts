@@ -2,7 +2,6 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { brotliDecompressSync, inflateSync } from 'zlib';
 import * as dayjs from 'dayjs';
-import fetch from 'node-fetch';
 import { WebSocket } from 'ws';
 import { log } from './logger';
 import { Database } from './database';
@@ -461,6 +460,8 @@ export class ChatClient {
             || raw.cmd == 'GUARD_HONOR_THOUSAND' // other liver's thousand guard notice
             || raw.cmd == 'LIVE_MULTI_VIEW_CHANGE' // unknown data
             || raw.cmd == 'NOTICE_MSG' // boring other live room, notice msg has completely proved its own meaningless
+            || raw.cmd == 'SYS_MSG' // boring rank
+            || raw.cmd == 'HOT_ROOM_NOTIFY' // boring rank
         ) {
             // discard because of too many, or meaningless, or both
             return;

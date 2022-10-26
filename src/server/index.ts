@@ -49,3 +49,38 @@ function shutdown() {
 }
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
+
+// @types/node does not include fetch definition for now
+// copy them for now, it's kind of ok because the type definitions does not actually change
+// and include dom types is rediculous
+declare global {
+    interface Headers {
+        [Symbol.iterator](): IterableIterator<[string, string]>;
+        /** Returns an iterator allowing to go through all key/value pairs contained in this object. */
+        entries(): IterableIterator<[string, string]>;
+        /** Returns an iterator allowing to go through all keys of the key/value pairs contained in this object. */
+        keys(): IterableIterator<string>;
+        /** Returns an iterator allowing to go through all values of the key/value pairs contained in this object. */
+        values(): IterableIterator<string>;
+    }
+    interface Body {
+        // readonly body: ReadableStream<Uint8Array> | null;
+        readonly bodyUsed: boolean;
+        arrayBuffer(): Promise<ArrayBuffer>;
+        blob(): Promise<Blob>;
+        // formData(): Promise<FormData>;
+        json(): Promise<any>;
+        text(): Promise<string>;
+    }
+    interface Response extends Body {
+        readonly headers: Headers;
+        readonly ok: boolean;
+        readonly redirected: boolean;
+        readonly status: number;
+        readonly statusText: string;
+        // readonly type: ResponseType;
+        readonly url: string;
+        clone(): Response;
+    }
+    function fetch(input: string): Promise<Response>;
+}

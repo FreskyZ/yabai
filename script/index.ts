@@ -3,6 +3,7 @@ import { admin } from './tools/admin';
 import { build as buildSelf, hashself } from './targets/self';
 import { build as buildHome } from './targets/home';
 import { build as buildPlayer } from './targets/player';
+import { build as buildButton } from './targets/button';
 import { build as buildServer, uploadConfig } from './targets/server';
 
 process.on('unhandledRejection', error => {
@@ -19,8 +20,10 @@ function dispatch(args: string) {
 
     else if (args == 'home') { buildHome() }
     else if (args == 'player') { buildPlayer(false); }
+    else if (args == 'button') { buildButton(false); }
     else if (args == 'server') { buildServer(false); }
     else if (args == 'watch player') { buildPlayer(true); }
+    else if (args == 'watch button') { buildButton(true); }
     else if (args == 'watch server') { buildServer(true); }
 
     // content

@@ -17,7 +17,10 @@ const ui = {
     danmus: [] as HTMLDivElement[],
 };
 
-let danmucount = 15;
+// refresh when room id change
+window.onhashchange = () => document.location.reload();
+
+let danmucount = 13;
 new Array(danmucount).fill(0).map((_, i) => {
     const danmu = document.createElement('div');
     danmu.classList.add('chat-item');
@@ -82,7 +85,7 @@ function refreshLayout() {
     }
 
     // mobile device or narrow window on pc (not really, pc version seems to limit to 500px)
-    if (document.body.scrollWidth < 480) {
+    if (document.body.scrollWidth < 480 && !window.matchMedia("(orientation: landscape)").matches) {
         ui.control.style.left = '0px';
         ui.control.style.top = ui.video.style.height;
         ui.control.style.width = '100vw';
@@ -98,7 +101,10 @@ window.addEventListener('resize', () => {
 
 // html requires autoplay to be muted, allow click anywhere (mask) to unmut
 ui.mask.onclick = () => {
-    ui.video.muted = false;
+    if (ui.video.muted) {
+        ui.video.muted = false;
+        ui.video.volume = 0.1;
+    }
 };
 
 interface DragData { mouseX: number, mouseY: number, elementX: number, elementY: number }
@@ -126,7 +132,7 @@ ui.mask.ondrop = e => {
 
 async function play(liveinfo: LiveInfo) {
 
-    ui.elapsed.innerText = '00:00';
+    ui.elapsed.innerText = '-:-';
     // ui.icon.href = liveinfo.avatarImage; // not work
     ui.title.innerText = `${liveinfo.title} - ${liveinfo.userName}`;
     ui.title.title = ui.title.innerText;
@@ -236,7 +242,7 @@ async function stopChatClient(): Promise<void> {
 }
 
 function handleRawChatItem(raw: any) {
-    if (raw.cmd == 'DANMU_MSG') {
+    if (raw.cmd.startsWith('DANMU_MSG')) {
         const item: ChatItem = {
             userId: raw.info[2][0],
             userName: raw.info[2][1],

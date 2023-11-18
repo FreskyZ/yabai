@@ -29,8 +29,9 @@ const sassOptions: SassOptions = {
 const getTypeScriptOptions = (watch: boolean): TypeScriptOptions => ({
     base: 'normal',
     entry: `src/player/index.ts`,
+    // module: 'es',
     additionalLib: ['dom'],
-    sourceMap: 'no',
+    sourceMap: 'no', // 'normal',
     watch,
 });
 const getMyPackOptions = (files: MyPackOptions['files']): MyPackOptions => ({
@@ -64,11 +65,12 @@ async function buildOnce(): Promise<void> {
     logInfo('akr', chalk`{cyan player}`);
     await eslint(`player`, 'browser', 'src/player/index.tsx');
 
-    // task1: read html file
+    // task1: html template
     const p1 = (async () => {
         const content = await fs.promises.readFile(htmlEntry, 'utf-8');
         return getHTMLUploadAsset(content.replace('<dev-script-placeholder />', ''));
     })();
+
     // task2: transpile sass
     const p2 = (async () => {
         const transpileResult = await sass(sassOptions).transpile();
@@ -77,6 +79,7 @@ async function buildOnce(): Promise<void> {
         }
         return getCssUploadAsset(transpileResult);
     })();
+
     // task3: codegen, check and pack
     const p3 = (async () => {
         const generateResult = await codegen('client').generate();

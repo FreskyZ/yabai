@@ -36,7 +36,7 @@ class Logger {
     init() {
         fs.mkdirSync('logs', { recursive: true });
         this.handle = fs.openSync(path.join(logsDirectory,
-            `${this.time.format('YYYYMMDD')}${this.options.postfix}.log`), 'a');
+            `${this.time.format('YYMMDD')}${this.options.postfix}.log`), 'a');
     }
 
     deinit() {
@@ -72,7 +72,7 @@ class Logger {
 
     cleanup() {
         for (const filename of fs.readdirSync(logsDirectory)) {
-            const date = dayjs.utc(path.basename(filename).slice(0, 8), 'YYYYMMDD');
+            const date = dayjs.utc(path.basename(filename).slice(0, 8), 'YYMMDD');
             if (date.isValid() && date.add(this.options.reserveDays, 'day').isBefore(dayjs.utc(), 'date')) {
                 try {
                     fs.unlinkSync(path.resolve(logsDirectory, filename));
@@ -102,11 +102,11 @@ class Logger {
 type Level = 'info' | 'error' | 'debug';
 const levels: Record<Level, LoggerOptions> = {
     // normal log
-    info: { postfix: 'I', flushByCount: 11, flushByInterval: 600, reserveDays: 7 },
+    info: { postfix: 'I', flushByCount: 11, flushByInterval: 600, reserveDays: 14 },
     // error log, flush immediately, in that case, flush by interval is not used
-    error: { postfix: 'E', flushByCount: 0, flushByInterval: 0, reserveDays: 7 },
+    error: { postfix: 'E', flushByCount: 0, flushByInterval: 0, reserveDays: 14 },
     // debug log, raw message and transformed message, is written frequently, so flush by count is kind of large
-    debug: { postfix: 'D', flushByCount: 101, flushByInterval: 600, reserveDays: 7 },
+    debug: { postfix: 'D', flushByCount: 101, flushByInterval: 600, reserveDays: 14 },
 };
 
 // @ts-ignore ts does not understand object.entries, actually it does not understand reduce<>(..., {}), too

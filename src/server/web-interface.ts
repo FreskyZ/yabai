@@ -52,7 +52,7 @@ async function getPlayInfo(realId: number): Promise<api.PlayInfo[]> {
         // format: 0: flv (use with protocol=0), 1: ts, 2: fmp4 (these 2 use with protocol=1)
         //            accept multiple by join by ','
         // codec: 0: avc, 1: hevc, accept multiple by join by ',', hevc seems have compatible and performance issue
-        + `?qn=400&protocol=0%2C1&format=0%2C1%2C2&codec=0%2C1&platform=h5&ptype=8&room_id=${realId}`);
+        + `?qn=150&protocol=0%2C1&format=0%2C1%2C2&codec=0%2C1&platform=h5&ptype=8&room_id=${realId}`);
     if (response.status != 200) {
         throw new FineError('internal', `play info: response ${response.status} ${response.statusText}`);
     }

@@ -297,7 +297,7 @@ export class ChatClient {
     }
 
     private transform(raw: any) {
-        if (raw.cmd == 'DANMU_MSG') {
+        if (raw.cmd && typeof raw.cmd == 'string' && raw.cmd.startsWith('DANMU_MSG')) {
             if (!this.assertStructure(raw,
                 raw.info
                 && Array.isArray(raw.info)
@@ -444,9 +444,12 @@ export class ChatClient {
             || raw.cmd == 'HOT_RANK_SETTLEMENT_V2' // kind of boring rank
             || raw.cmd == 'HOT_RANK_SETTLEMENT' // boring rank
             || raw.cmd == 'COMMON_NOTICE_DANMAKU' // boring rank
+            || raw.cmd == 'PK_BATTLE_ENTRANCE' // boring rank
             || raw.cmd == 'WIDGET_BANNER' // boring banner
             || raw.cmd == 'ACTIVITY_BANNER_CHANGE' // boring banner
             || raw.cmd == 'ACTIVITY_BANNER_CHANGE_V2' // boring banner
+            || raw.cmd == 'GIFT_STAR_PROCESS' // boring "please send gift"
+            || raw.cmd == 'FULL_SCREEN_SPECIAL_EFFECT' // boring other live room
             || raw.cmd == 'ROOM_SKIN_MSG' // not used feature
             || raw.cmd == 'INTERACT_WORD' // // this is too early, I forget
             || raw.cmd == 'LIKE_INFO_V3_UPDATE' // boring double click to like

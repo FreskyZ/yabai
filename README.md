@@ -9,6 +9,11 @@ bilibili live life quality improvement services
 - a command line live chat replay tool
 - a cannot-be-simpler audio slice player ("button site")
 
+## Status
+
+Development will be halt for some time waiting for framework/tooling upgrade, but as long as
+I'm watching bilibili live stream, I will continue work on this project.
+
 ## Motivation & History
 
 There are (and were) many bilibili live chat archive services available publicly,
